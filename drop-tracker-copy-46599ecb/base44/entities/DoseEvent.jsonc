@@ -1,0 +1,93 @@
+{
+  "name": "DoseEvent",
+  "type": "object",
+  "properties": {
+    "medication_id": {
+      "type": "string",
+      "title": "Medication ID"
+    },
+    "medication_name": {
+      "type": "string",
+      "title": "Medication Name"
+    },
+    "bottle_cap_color": {
+      "type": "string",
+      "enum": [
+        "white",
+        "pink",
+        "tan",
+        "red",
+        "green",
+        "blue",
+        "teal",
+        "gray"
+      ],
+      "title": "Bottle Cap Color"
+    },
+    "eye": {
+      "type": "string",
+      "enum": [
+        "right",
+        "left",
+        "both"
+      ],
+      "title": "Eye"
+    },
+    "scheduled_time": {
+      "type": "string",
+      "title": "Scheduled Time",
+      "description": "ISO timestamp of when the dose was scheduled"
+    },
+    "scheduled_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Scheduled Date"
+    },
+    "scheduled_hhmm": {
+      "type": "string",
+      "title": "Scheduled HH:MM"
+    },
+    "response": {
+      "type": "string",
+      "enum": [
+        "took_it",
+        "not_sure",
+        "snoozed",
+        "skipped"
+      ],
+      "title": "Response"
+    },
+    "response_time": {
+      "type": "string",
+      "title": "Response Time",
+      "description": "ISO timestamp of when the user responded"
+    },
+    "instruction_flags": {
+      "type": "object",
+      "properties": {
+        "shake": {
+          "type": "boolean"
+        },
+        "refrigerate": {
+          "type": "boolean"
+        },
+        "wait_5_min": {
+          "type": "boolean"
+        },
+        "remove_contacts": {
+          "type": "boolean"
+        },
+        "press_tear_duct": {
+          "type": "boolean"
+        }
+      },
+      "title": "Instruction Flags (snapshot)"
+    }
+  },
+  "required": [
+    "medication_id",
+    "medication_name",
+    "scheduled_time",
+    "response"
+  ]
+}

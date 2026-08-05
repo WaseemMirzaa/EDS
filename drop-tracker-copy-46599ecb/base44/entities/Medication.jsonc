@@ -1,0 +1,152 @@
+{
+  "name": "Medication",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Medication Name"
+    },
+    "bottle_cap_color": {
+      "type": "string",
+      "enum": [
+        "white",
+        "pink",
+        "tan",
+        "red",
+        "green",
+        "blue",
+        "teal",
+        "gray"
+      ],
+      "title": "Bottle Cap Color"
+    },
+    "eye": {
+      "type": "string",
+      "enum": [
+        "right",
+        "left",
+        "both"
+      ],
+      "title": "Eye"
+    },
+    "frequency_type": {
+      "type": "string",
+      "enum": [
+        "once_daily",
+        "twice_daily",
+        "three_daily",
+        "four_daily",
+        "every_n_hours",
+        "custom_times"
+      ],
+      "title": "Frequency Type"
+    },
+    "frequency_value": {
+      "type": "number",
+      "title": "Frequency Value (hours)"
+    },
+    "dose_times": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Dose Times",
+      "description": "Array of HH:MM strings"
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Start Date"
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date",
+      "title": "End Date"
+    },
+    "ongoing": {
+      "type": "boolean",
+      "default": false,
+      "title": "Ongoing"
+    },
+    "instructions": {
+      "type": "object",
+      "properties": {
+        "shake": {
+          "type": "boolean",
+          "default": false
+        },
+        "refrigerate": {
+          "type": "boolean",
+          "default": false
+        },
+        "wait_5_min": {
+          "type": "boolean",
+          "default": false
+        },
+        "remove_contacts": {
+          "type": "boolean",
+          "default": false
+        },
+        "press_tear_duct": {
+          "type": "boolean",
+          "default": false
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "title": "Special Instructions"
+    },
+    "taper_steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "start_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "frequency_type": {
+            "type": "string",
+            "enum": [
+              "once_daily",
+              "twice_daily",
+              "three_daily",
+              "four_daily",
+              "every_n_hours",
+              "custom_times"
+            ]
+          },
+          "frequency_value": {
+            "type": "number"
+          },
+          "dose_times": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "title": "Taper Steps"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "antibiotic",
+        "steroid",
+        "nsaid",
+        "artificial_tears",
+        "glaucoma",
+        "other"
+      ],
+      "default": "other",
+      "title": "Category"
+    }
+  },
+  "required": [
+    "name",
+    "eye",
+    "frequency_type"
+  ]
+}

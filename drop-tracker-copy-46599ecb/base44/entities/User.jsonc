@@ -1,0 +1,30 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "first_name": {
+      "type": "string",
+      "title": "First Name"
+    },
+    "waking_start": {
+      "type": "string",
+      "default": "07:00",
+      "title": "Waking Start"
+    },
+    "waking_end": {
+      "type": "string",
+      "default": "21:00",
+      "title": "Waking End"
+    },
+    "onboarded": {
+      "type": "boolean",
+      "default": false,
+      "title": "Onboarded"
+    },
+    "has_seen_disclaimer": {
+      "type": "boolean",
+      "default": false,
+      "title": "Has Seen Disclaimer"
+    }
+  }
+}

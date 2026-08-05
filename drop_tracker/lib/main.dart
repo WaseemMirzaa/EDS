@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'app.dart';
+import 'data/auth_controller.dart';
 import 'data/drop_store.dart';
 import 'data/notification_service.dart';
 
@@ -10,11 +11,15 @@ Future<void> main() async {
   await NotificationService.instance.init();
 
   final store = DropStore();
-  await store.init();
+  final auth = AuthController();
+  await Future.wait([store.init(), auth.init()]);
 
   runApp(
-    ChangeNotifierProvider.value(
-      value: store,
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: store),
+        ChangeNotifierProvider.value(value: auth),
+      ],
       child: const DropTrackerApp(),
     ),
   );

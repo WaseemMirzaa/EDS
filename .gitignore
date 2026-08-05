@@ -3,3 +3,6 @@
 
 # Dependencies
 node_modules/
+
+# Installed AI skill tooling (local, not app code)
+.claude/

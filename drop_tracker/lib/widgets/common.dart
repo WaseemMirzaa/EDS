@@ -209,6 +209,7 @@ class AppField extends StatefulWidget {
   final List<TextInputFormatter> formatters;
   final ValueChanged<String>? onChanged;
   final TextAlign textAlign;
+  final bool obscure;
   const AppField({
     super.key,
     required this.controller,
@@ -220,6 +221,7 @@ class AppField extends StatefulWidget {
     this.formatters = const [],
     this.onChanged,
     this.textAlign = TextAlign.start,
+    this.obscure = false,
   });
 
   @override
@@ -229,6 +231,7 @@ class AppField extends StatefulWidget {
 class _AppFieldState extends State<AppField> {
   final _focus = FocusNode();
   bool _focused = false;
+  late bool _hidden = widget.obscure;
 
   @override
   void initState() {
@@ -257,25 +260,42 @@ class _AppFieldState extends State<AppField> {
             ? [BoxShadow(color: BrandColors.primary.withValues(alpha: 0.12), blurRadius: 10, spreadRadius: 1)]
             : null,
       ),
-      child: TextField(
-        controller: widget.controller,
-        focusNode: _focus,
-        textCapitalization: widget.capitalization,
-        keyboardType: widget.keyboardType,
-        minLines: widget.minLines,
-        maxLines: widget.maxLines,
-        inputFormatters: widget.formatters,
-        onChanged: widget.onChanged,
-        textAlign: widget.textAlign,
-        cursorColor: BrandColors.primary,
-        style: AppTypography.body(16, weight: FontWeight.w600),
-        decoration: InputDecoration(
-          hintText: widget.hint,
-          hintStyle: AppTypography.body(16, weight: FontWeight.w500, color: BrandColors.inkFaint),
-          border: InputBorder.none,
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
-        ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: widget.controller,
+              focusNode: _focus,
+              textCapitalization: widget.capitalization,
+              keyboardType: widget.keyboardType,
+              minLines: widget.obscure ? 1 : widget.minLines,
+              maxLines: widget.obscure ? 1 : widget.maxLines,
+              obscureText: _hidden,
+              inputFormatters: widget.formatters,
+              onChanged: widget.onChanged,
+              textAlign: widget.textAlign,
+              cursorColor: BrandColors.primary,
+              style: AppTypography.body(16, weight: FontWeight.w600),
+              decoration: InputDecoration(
+                hintText: widget.hint,
+                hintStyle: AppTypography.body(16, weight: FontWeight.w500, color: BrandColors.inkFaint),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
+              ),
+            ),
+          ),
+          if (widget.obscure)
+            Pressable(
+              onTap: () => setState(() => _hidden = !_hidden),
+              borderRadius: BorderRadius.circular(999),
+              child: Padding(
+                padding: const EdgeInsets.only(right: 12, left: 4),
+                child: Icon(_hidden ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                    size: 20, color: BrandColors.inkFaint),
+              ),
+            ),
+        ],
       ),
     );
   }

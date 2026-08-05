@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'data/auth_controller.dart';
 import 'data/drop_store.dart';
 import 'data/notification_service.dart';
+import 'screens/auth/auth_flow.dart';
 import 'screens/home_shell.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/permission_screen.dart';
 import 'theme/app_theme.dart';
 import 'theme/brand.dart';
 
@@ -62,14 +65,17 @@ class _RootGateState extends State<_RootGate> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<DropStore>();
-    if (!store.loaded) {
+    final auth = context.watch<AuthController>();
+    if (!store.loaded || !auth.loaded) {
       return const Scaffold(
         backgroundColor: BrandColors.background,
-        body: Center(
-          child: CircularProgressIndicator(color: BrandColors.ocean),
-        ),
+        body: Center(child: CircularProgressIndicator(color: BrandColors.primary)),
       );
     }
-    return store.user.onboarded ? const HomeShell() : const OnboardingScreen();
+    // Gated flow: permissions (mandatory) → auth → onboarding → home.
+    if (!auth.permissionsDone) return const PermissionScreen();
+    if (!auth.signedIn) return const AuthFlow();
+    if (!store.user.onboarded) return const OnboardingScreen();
+    return const HomeShell();
   }
 }

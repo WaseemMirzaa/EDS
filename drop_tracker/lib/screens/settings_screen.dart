@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../data/auth_controller.dart';
 import '../data/drop_store.dart';
 import '../data/ics_generator.dart';
 import '../data/notification_service.dart';
@@ -12,73 +13,26 @@ import '../widgets/disclaimer_banner.dart';
 import '../widgets/drop_logo.dart';
 import '../widgets/motion.dart';
 import 'battery_optimization_screen.dart';
+import 'profile_screen.dart';
 
 // Placeholder brand URLs — swap for the live legal pages before store submission.
 const _privacyUrl = 'https://eyedropshop.ca/privacy';
 const _termsUrl = 'https://eyedropshop.ca/terms';
 const _accountDeletionUrl = 'https://eyedropshop.ca/account-deletion';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
-  @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
-}
-
-class _SettingsScreenState extends State<SettingsScreen> {
-  late TextEditingController _name;
-  TimeOfDay _wake = const TimeOfDay(hour: 7, minute: 0);
-  TimeOfDay _bed = const TimeOfDay(hour: 21, minute: 0);
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final u = context.read<DropStore>().user;
-    _name = TextEditingController(text: u.firstName);
-    _wake = _parse(u.wakingStart);
-    _bed = _parse(u.wakingEnd);
-  }
-
-  @override
-  void dispose() {
-    _name.dispose();
-    super.dispose();
-  }
-
-  TimeOfDay _parse(String hhmm) {
-    final p = hhmm.split(':').map(int.parse).toList();
-    return TimeOfDay(hour: p[0], minute: p[1]);
-  }
-
-  String _hhmm(TimeOfDay t) =>
-      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-
-  Future<void> _save() async {
-    setState(() => _saving = true);
-    await context.read<DropStore>().updateUser(
-          firstName: _name.text.trim(),
-          wakingStart: _hhmm(_wake),
-          wakingEnd: _hhmm(_bed),
-        );
-    if (mounted) {
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Settings saved')));
-    }
-  }
-
-  Future<void> _open(String url) async {
+  Future<void> _open(BuildContext context, String url) async {
     final uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Could not open $url')));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not open $url')));
       }
     }
   }
 
-  Future<void> _confirmDeleteAccount() async {
+  Future<void> _confirmDeleteAccount(BuildContext context) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -95,52 +49,66 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
-    if (ok == true && mounted) {
+    if (ok == true && context.mounted) {
       await context.read<DropStore>().deleteAllData();
-      // Root gate returns to onboarding automatically.
+      if (context.mounted) await context.read<AuthController>().signOut();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<DropStore>();
+    final auth = context.watch<AuthController>();
+    final name = store.user.firstName;
 
     return Scaffold(
       body: SafeArea(
         bottom: false,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
           children: [
-            Text('Settings', style: AppTypography.display(28, weight: FontWeight.w600)),
-            const Gap(16),
+            Text('Settings', style: AppTypography.display(32, weight: FontWeight.w700)),
+            const Gap(20),
 
-            // Profile
-            _section('Your profile'),
-            _label('Your name'),
-            AppField(
-              controller: _name,
-              hint: 'Your first name',
-              capitalization: TextCapitalization.words,
+            // Profile navigation
+            AppCard(
+              padding: const EdgeInsets.all(16),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileScreen())),
+              child: Row(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: const BoxDecoration(color: BrandColors.cloud, shape: BoxShape.circle),
+                    alignment: Alignment.center,
+                    child: Text(
+                      (name.isNotEmpty ? name : (auth.email ?? 'U'))[0].toUpperCase(),
+                      style: AppTypography.display(24, weight: FontWeight.w700, color: BrandColors.primary),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(name.isNotEmpty ? name : 'Set up your profile',
+                            style: AppTypography.body(17, weight: FontWeight.w700)),
+                        const SizedBox(height: 2),
+                        Text(auth.email ?? 'Name & waking hours',
+                            style: AppTypography.body(13.5, weight: FontWeight.w500, color: BrandColors.inkSoft)),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right_rounded, color: BrandColors.inkFaint),
+                ],
+              ),
             ),
-            const Gap(14),
-            _label('Waking hours'),
-            Row(
-              children: [
-                Expanded(child: _timeField(_wake, (t) => setState(() => _wake = t))),
-                const Padding(padding: EdgeInsets.symmetric(horizontal: 10), child: Text('to')),
-                Expanded(child: _timeField(_bed, (t) => setState(() => _bed = t))),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text('Used to auto-suggest evenly spaced dose times.',
-                style: AppTypography.body(12, color: BrandColors.inkFaint)),
-            const Gap(12),
-            PrimaryButton(label: 'Save Settings', loading: _saving, onPressed: _save),
             const Gap(24),
 
             // Reminders
-            _section('Reminders'),
+            const SectionLabel('Reminders'),
             AppCard(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 children: [
                   _tile(
@@ -148,8 +116,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Notification permissions',
                     subtitle: 'Allow Drop Tracker to remind you on time.',
                     onTap: () async {
-                      final granted =
-                          await NotificationService.instance.requestPermissions();
+                      final granted = await NotificationService.instance.requestPermissions();
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                             content: Text(granted
@@ -163,8 +130,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     icon: Icons.battery_charging_full_rounded,
                     title: 'Keep reminders reliable',
                     subtitle: 'Battery-optimisation guidance for your device.',
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => const BatteryOptimizationScreen())),
+                    onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const BatteryOptimizationScreen())),
                   ),
                   const Divider(height: 1),
                   _tile(
@@ -182,36 +149,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const Gap(24),
 
             // Safety
-            _section('Safety'),
+            const SectionLabel('Safety'),
             const DisclaimerBanner(),
             const Gap(24),
 
             // About & legal
-            _section('About & legal'),
+            const SectionLabel('About & legal'),
             AppCard(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 children: [
-                  _tile(
-                    icon: Icons.privacy_tip_outlined,
-                    title: 'Privacy Policy',
-                    onTap: () => _open(_privacyUrl),
-                    trailing: Icons.open_in_new_rounded,
-                  ),
+                  _tile(icon: Icons.privacy_tip_outlined, title: 'Privacy Policy', trailing: Icons.open_in_new_rounded, onTap: () => _open(context, _privacyUrl)),
                   const Divider(height: 1),
-                  _tile(
-                    icon: Icons.article_outlined,
-                    title: 'Terms of Service',
-                    onTap: () => _open(_termsUrl),
-                    trailing: Icons.open_in_new_rounded,
-                  ),
+                  _tile(icon: Icons.article_outlined, title: 'Terms of Service', trailing: Icons.open_in_new_rounded, onTap: () => _open(context, _termsUrl)),
                 ],
               ),
             ),
             const Gap(24),
 
             // Account
-            _section('Account'),
+            const SectionLabel('Account'),
             AppCard(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 children: [
                   _tile(
@@ -226,39 +185,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Delete account & data',
                     subtitle: 'Erase everything on this device.',
                     color: BrandColors.danger,
-                    onTap: _confirmDeleteAccount,
+                    onTap: () => _confirmDeleteAccount(context),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              'On Android you can also request deletion via our web portal.',
-              style: AppTypography.body(12, color: BrandColors.inkFaint),
-            ),
+            Text('On Android you can also request deletion via our web portal.',
+                style: AppTypography.body(12, color: BrandColors.inkFaint)),
             TextButton(
-              onPressed: () => _open(_accountDeletionUrl),
+              onPressed: () => _open(context, _accountDeletionUrl),
               style: TextButton.styleFrom(
-                  padding: EdgeInsets.zero, minimumSize: const Size(0, 32),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  padding: EdgeInsets.zero, minimumSize: const Size(0, 32), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
               child: Text('Open account-deletion portal',
-                  style: AppTypography.body(12, weight: FontWeight.w700, color: BrandColors.waves)),
+                  style: AppTypography.body(12, weight: FontWeight.w700, color: BrandColors.secondary)),
             ),
             const Gap(16),
             SecondaryButton(
               label: 'Log Out',
               icon: Icons.logout_rounded,
               color: BrandColors.danger,
-              onPressed: () => context.read<DropStore>().logOut(),
+              onPressed: () => context.read<AuthController>().signOut(),
             ),
             const Gap(24),
 
             Center(
               child: Opacity(
-                opacity: 0.6,
+                opacity: 0.55,
                 child: Column(
                   children: [
-                    const DropWordmark(height: 20),
+                    DropWordmark(height: 20, textColor: BrandColors.inkSoft, ringColor: BrandColors.primary),
                     const SizedBox(height: 8),
                     Text('Drop Tracker v1.0.0 · by eye doctors, for you',
                         style: AppTypography.body(11, color: BrandColors.inkFaint)),
@@ -268,39 +224,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _section(String title) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Text(title.toUpperCase(),
-            style: AppTypography.body(12, weight: FontWeight.w700, color: BrandColors.inkFaint)
-                .copyWith(letterSpacing: 0.6)),
-      );
-
-  Widget _label(String t) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Text(t, style: AppTypography.body(14, weight: FontWeight.w600, color: BrandColors.inkSoft)),
-      );
-
-  Widget _timeField(TimeOfDay value, ValueChanged<TimeOfDay> onChange) {
-    return InkWell(
-      onTap: () async {
-        final picked = await showTimePicker(context: context, initialTime: value);
-        if (picked != null) onChange(picked);
-      },
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        height: 52,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: BrandColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: BrandColors.hairlineCool, width: 1.5),
-        ),
-        child: Text(value.format(context),
-            style: AppTypography.body(16, weight: FontWeight.w700)),
       ),
     );
   }
@@ -352,5 +275,4 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-
 }

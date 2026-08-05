@@ -1,41 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'brand.dart';
 
-/// Typography — SF Pro (the iOS system face) for all UI text, per the premium
-/// spec. On Apple platforms these resolve to San Francisco Display/Text; on
-/// Android they fall back gracefully. The serif is reserved for the logo mark.
+/// Typography — minimalist medical pairing (uipro): Figtree for headings,
+/// Noto Sans for body. Oversized headings with tight tracking, generous
+/// line-height for readability.
 class AppTypography {
   AppTypography._();
-
-  static const String _display = 'CupertinoSystemDisplay';
-  static const String _text = 'CupertinoSystemText';
-  static const List<String> _fallback = ['SF Pro Display', '.SF Pro Display', 'Roboto'];
 
   /// Large headings / titles.
   static TextStyle display(double size,
           {FontWeight weight = FontWeight.w700, Color? color, double? height, double? letterSpacing}) =>
-      TextStyle(
-        fontFamily: _display,
-        fontFamilyFallback: _fallback,
+      GoogleFonts.figtree(
         fontSize: size,
         fontWeight: weight,
         color: color ?? BrandColors.ink,
-        height: height ?? 1.12,
-        letterSpacing: letterSpacing ?? (size >= 28 ? -0.6 : -0.3),
+        height: height ?? 1.1,
+        letterSpacing: letterSpacing ?? size * -0.02, // ~ -0.02em, per style
       );
 
   /// Body / UI text.
   static TextStyle body(double size,
           {FontWeight weight = FontWeight.w500, Color? color, double? height, double? letterSpacing}) =>
-      TextStyle(
-        fontFamily: _text,
-        fontFamilyFallback: _fallback,
+      GoogleFonts.notoSans(
         fontSize: size,
         fontWeight: weight,
         color: color ?? BrandColors.ink,
-        height: height ?? 1.35,
-        letterSpacing: letterSpacing ?? (size <= 13 ? 0.0 : -0.1),
+        height: height ?? 1.4,
+        letterSpacing: letterSpacing ?? 0,
       );
 }
 

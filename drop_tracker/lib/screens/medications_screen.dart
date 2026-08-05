@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../data/dose_logic.dart';
 import '../data/drop_store.dart';
-import '../data/ics_generator.dart';
+import '../models/dose.dart';
+import '../models/enums.dart';
 import '../models/medication.dart';
 import '../theme/app_theme.dart';
 import '../theme/brand.dart';
 import '../widgets/cap_color_dot.dart';
 import '../widgets/common.dart';
 import '../widgets/drop_logo.dart';
+import '../widgets/motion.dart';
 import 'medication_form_screen.dart';
 
 class MedicationsScreen extends StatelessWidget {
@@ -23,8 +26,7 @@ class MedicationsScreen extends StatelessWidget {
         content: Text(
             'This permanently removes "${med.name}" and cancels its future reminders. This cannot be undone.'),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: BrandColors.danger),
             onPressed: () => Navigator.pop(ctx, true),
@@ -42,6 +44,31 @@ class MedicationsScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _markTaken(BuildContext context, DropStore store, Medication med, String today) async {
+    final doses = store.dosesFor(today).where((d) => d.medicationId == med.id).toList();
+    final events = store.eventsOn(today);
+    Dose? pending;
+    for (final d in doses) {
+      if (DoseLogic.matchDoseToEvent(d, events) == null) {
+        pending = d;
+        break;
+      }
+    }
+    if (pending == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${med.name}: all of today\'s doses are logged.')),
+      );
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    await store.logResponse(pending, DoseResponse.tookIt);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Marked taken · ${DoseLogic.formatTime(pending.scheduledHhmm)}')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = context.watch<DropStore>();
@@ -55,21 +82,25 @@ class MedicationsScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: Text('Medications', style: AppTypography.display(28, weight: FontWeight.w600)),
-                  ),
-                  FilledButton.icon(
-                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => const MedicationFormScreen())),
-                    icon: const Icon(Icons.add_rounded, size: 20),
-                    label: const Text('Add'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: BrandColors.ocean,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Medications', style: AppTypography.display(32, weight: FontWeight.w700)),
+                        const SizedBox(height: 4),
+                        Text('Manage your daily eye medications',
+                            style: AppTypography.body(15, weight: FontWeight.w500, color: BrandColors.inkSoft)),
+                      ],
                     ),
+                  ),
+                  const SizedBox(width: 12),
+                  _AddButton(
+                    onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const MedicationFormScreen())),
                   ),
                 ],
               ),
@@ -78,10 +109,13 @@ class MedicationsScreen extends StatelessWidget {
               child: meds.isEmpty
                   ? _empty(context)
                   : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
                       itemCount: meds.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (_, i) => _medCard(context, store, meds[i], today),
+                      separatorBuilder: (_, __) => const SizedBox(height: 16),
+                      itemBuilder: (_, i) => FadeSlideIn(
+                        delay: Duration(milliseconds: 60 * i),
+                        child: _medCard(context, store, meds[i], today),
+                      ),
                     ),
             ),
           ],
@@ -97,16 +131,22 @@ class MedicationsScreen extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Opacity(opacity: 0.4, child: DropMark(size: 56, color: BrandColors.waves, filled: true)),
-            const Gap(16),
-            Text('No medications yet', style: AppTypography.body(17, weight: FontWeight.w700)),
-            const Gap(6),
-            Text('Add your first eye drop to start tracking.',
-                textAlign: TextAlign.center,
-                style: AppTypography.body(14, color: BrandColors.inkSoft)),
+            Container(
+              width: 96,
+              height: 96,
+              decoration: const BoxDecoration(color: BrandColors.cloud, shape: BoxShape.circle),
+              alignment: Alignment.center,
+              child: DropMark(size: 46, color: BrandColors.secondary, filled: true),
+            ),
             const Gap(20),
+            Text('No medications yet', style: AppTypography.display(22, weight: FontWeight.w700)),
+            const Gap(8),
+            Text('Add your prescriptions to receive reminders and track your treatment.',
+                textAlign: TextAlign.center,
+                style: AppTypography.body(15, weight: FontWeight.w500, color: BrandColors.inkSoft, height: 1.45)),
+            const Gap(24),
             PrimaryButton(
-              label: 'Add your first drop',
+              label: 'Add Medication',
               icon: Icons.add_rounded,
               onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const MedicationFormScreen())),
@@ -120,76 +160,104 @@ class MedicationsScreen extends StatelessWidget {
   Widget _medCard(BuildContext context, DropStore store, Medication med, String today) {
     final active = DoseLogic.isMedicationActiveOn(med, today);
     final times = DoseLogic.getDoseTimesForDate(med, today,
-            wakingStart: store.user.wakingStart, wakingEnd: store.user.wakingEnd)
-        .map(DoseLogic.formatTime)
-        .join(' · ');
+        wakingStart: store.user.wakingStart, wakingEnd: store.user.wakingEnd);
 
     return Opacity(
-      opacity: active ? 1 : 0.6,
+      opacity: active ? 1 : 0.62,
       child: AppCard(
+        padding: const EdgeInsets.all(22),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                CapColorDot(colorKey: med.bottleCapColor, size: 32),
-                const SizedBox(width: 12),
+                MedPill(colorKey: med.bottleCapColor, size: 52),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(med.name, style: AppTypography.body(16, weight: FontWeight.w700)),
-                      const SizedBox(height: 2),
-                      Text('${med.eye.label} · ${med.frequencyType.label}',
-                          style: AppTypography.body(13, weight: FontWeight.w500, color: BrandColors.inkSoft)),
-                      if (times.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(times,
-                            style: AppTypography.body(12, weight: FontWeight.w500, color: BrandColors.inkFaint)),
-                      ],
-                      if (med.taperSteps.isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        Pill('Taper · ${med.taperSteps.length} steps',
-                            color: BrandColors.waves, bg: BrandColors.cloud, icon: Icons.stairs_rounded),
-                      ],
-                      if (!active) ...[
-                        const SizedBox(height: 6),
-                        Text('Inactive today',
-                            style: AppTypography.body(12, weight: FontWeight.w600, color: BrandColors.inkFaint)),
-                      ],
+                      Text(med.name,
+                          style: AppTypography.display(21, weight: FontWeight.w700),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(Icons.visibility_outlined, size: 15, color: BrandColors.inkFaint),
+                          const SizedBox(width: 5),
+                          Text(med.eye.label,
+                              style: AppTypography.body(14, weight: FontWeight.w500, color: BrandColors.inkSoft)),
+                          const SizedBox(width: 8),
+                          Text('·', style: AppTypography.body(14, color: BrandColors.inkFaint)),
+                          const SizedBox(width: 8),
+                          Icon(Icons.autorenew_rounded, size: 15, color: BrandColors.inkFaint),
+                          const SizedBox(width: 5),
+                          Flexible(
+                            child: Text(med.frequencyType.label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.body(14, weight: FontWeight.w500, color: BrandColors.inkSoft)),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            const Divider(height: 1),
-            const SizedBox(height: 4),
+            if (times.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: times.map((t) => _TimeChip(DoseLogic.formatTime(t))).toList(),
+              ),
+            ],
+            if (med.taperSteps.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Capsule('Taper · ${med.taperSteps.length} ${med.taperSteps.length == 1 ? "step" : "steps"}',
+                  color: BrandColors.secondary, icon: Icons.stairs_rounded),
+            ],
+            if (!active) ...[
+              const SizedBox(height: 12),
+              Capsule('Inactive today', color: BrandColors.inkFaint, icon: Icons.pause_rounded),
+            ],
+            const SizedBox(height: 18),
+            Divider(height: 1, color: BrandColors.border),
+            const SizedBox(height: 16),
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                _iconAction(
-                  icon: Icons.event_available_rounded,
-                  label: 'Calendar',
-                  color: BrandColors.waves,
-                  onTap: () => IcsGenerator.share(
-                    '${med.name}-reminders.ics',
-                    IcsGenerator.forMedication(med, store.user),
+                Expanded(
+                  child: _ActionButton(
+                    icon: Icons.check_circle_outline_rounded,
+                    label: 'Mark Taken',
+                    fg: BrandColors.primary,
+                    bg: BrandColors.primary.withValues(alpha: 0.09),
+                    onTap: () => _markTaken(context, store, med, today),
                   ),
                 ),
-                _iconAction(
-                  icon: Icons.edit_rounded,
-                  label: 'Edit',
-                  color: BrandColors.inkSoft,
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => MedicationFormScreen(existing: med))),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _ActionButton(
+                    icon: Icons.edit_outlined,
+                    label: 'Edit',
+                    fg: BrandColors.inkSoft,
+                    bg: BrandColors.fill,
+                    onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => MedicationFormScreen(existing: med))),
+                  ),
                 ),
-                _iconAction(
-                  icon: Icons.delete_outline_rounded,
-                  label: 'Delete',
-                  color: BrandColors.danger,
-                  onTap: () => _confirmDelete(context, med),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _ActionButton(
+                    icon: Icons.delete_outline_rounded,
+                    label: 'Delete',
+                    fg: BrandColors.danger,
+                    bg: BrandColors.danger.withValues(alpha: 0.08),
+                    onTap: () => _confirmDelete(context, med),
+                  ),
                 ),
               ],
             ),
@@ -198,18 +266,108 @@ class MedicationsScreen extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _iconAction({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return TextButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 18, color: color),
-      label: Text(label, style: AppTypography.body(13, weight: FontWeight.w600, color: color)),
-      style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10)),
+class _AddButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _AddButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Pressable(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      borderRadius: BorderRadius.circular(AppRadius.button),
+      child: Container(
+        height: 52,
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        decoration: BoxDecoration(
+          color: BrandColors.primary,
+          borderRadius: BorderRadius.circular(AppRadius.button),
+          boxShadow: [
+            BoxShadow(color: BrandColors.primary.withValues(alpha: 0.28), blurRadius: 16, offset: const Offset(0, 8), spreadRadius: -6),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
+              child: const Icon(Icons.add_rounded, size: 17, color: Colors.white),
+            ),
+            const SizedBox(width: 9),
+            Text('Add', style: AppTypography.body(16, weight: FontWeight.w700, color: Colors.white)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TimeChip extends StatelessWidget {
+  final String time;
+  const _TimeChip(this.time);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: BrandColors.fill,
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.schedule_rounded, size: 14, color: BrandColors.secondary),
+          const SizedBox(width: 6),
+          Text(time,
+              style: AppTypography.body(13.5,
+                  weight: FontWeight.w600, color: BrandColors.inkSoft, letterSpacing: 0)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color fg;
+  final Color bg;
+  final VoidCallback onTap;
+  const _ActionButton({required this.icon, required this.label, required this.fg, required this.bg, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Pressable(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        height: 48,
+        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(16)),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 19, color: fg),
+            const SizedBox(width: 7),
+            Flexible(
+              child: Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.body(14, weight: FontWeight.w700, color: fg)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

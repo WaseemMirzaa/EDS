@@ -1,62 +1,132 @@
 import 'package:flutter/material.dart';
 
-/// Eye Drop Shop brand palette — from the 2026 Brand Guidelines.
+/// Eye Drop Shop design system.
 ///
-/// Ocean / Waves / Cloud / Sunshine / Sand, plus Black & White.
+/// Palette follows the premium refinement spec (deep, calm medical blue on a
+/// warm paper background), harmonised with the brand's gold drop mark.
 class BrandColors {
   BrandColors._();
 
-  // Core brand palette
-  static const Color ocean = Color(0xFF0F3759); // deep blue — primary
-  static const Color oceanDeep = Color(0xFF0A2A44); // darker ocean for gradients
-  static const Color waves = Color(0xFF3D6B99); // medium blue — secondary
-  static const Color cloud = Color(0xFFE9F5FA); // pale blue — soft surfaces
-  static const Color sunshine = Color(0xFFE6D380); // warm yellow — accent
-  static const Color sunshineDeep = Color(0xFFC9A93E); // readable yellow for text
-  static const Color sand = Color(0xFFF4F0E6); // warm off-white — background
+  // Core
+  static const Color primary = Color(0xFF123F6A); // deep medical blue
+  static const Color primaryDeep = Color(0xFF0E3157); // gradient partner
+  static const Color secondary = Color(0xFF5B86B4); // soft blue
+  static const Color gold = Color(0xFFE6B84C); // brand drop / gold accent
 
-  static const Color black = Color(0xFF000000);
+  static const Color background = Color(0xFFFFFFFF); // white app background
+  static const Color backgroundWarm = Color(0xFFFFFFFF);
+  static const Color surface = Color(0xFFFFFFFF);
+  static const Color surfaceTint = Color(0xFFFCFDFF); // barely-there cool card top
+  static const Color fill = Color(0xFFF1F4F8); // subtle inner fill on white cards
+
+  static const Color ink = Color(0xFF172B45); // primary text (never pure black)
+  static const Color inkSoft = Color(0xFF6D7B8C); // secondary text
+  static const Color inkFaint = Color(0xFF9AA6B2); // tertiary text
+  static const Color border = Color(0xFFE8E5DE); // warm hairline
+  static const Color borderCool = Color(0xFFE4EAF1); // cool hairline
+
+  // Semantic
+  static const Color success = Color(0xFF35C56D);
+  static const Color successBg = Color(0xFFE8F7EE);
+  static const Color warning = Color(0xFFF2B63A);
+  static const Color warningText = Color(0xFFB07C15);
+  static const Color warningBg = Color(0xFFFCF3DD);
+  static const Color danger = Color(0xFFE65A5A);
+  static const Color dangerBg = Color(0xFFFBEAEA);
+  static const Color infoBg = Color(0xFFEAF1F8);
+
+  // Soft tinted surface for chips / secondary blue backgrounds
+  static const Color cloud = Color(0xFFEAF1F8);
+
+  // ---- Back-compat aliases (older widgets referenced these names) ----
+  static const Color ocean = primary;
+  static const Color oceanDeep = primaryDeep;
+  static const Color waves = secondary;
+  static const Color sunshine = gold;
+  static const Color sand = backgroundWarm;
   static const Color white = Color(0xFFFFFFFF);
+  static const Color hairline = border;
+  static const Color hairlineCool = borderCool;
+  static const Color tookIt = success;
+  static const Color tookItBg = successBg;
+  static const Color notSure = warning;
+  static const Color notSureBg = warningBg;
+  static const Color snoozed = secondary;
+  static const Color snoozedBg = infoBg;
+  static const Color skipped = danger;
+  static const Color skippedBg = dangerBg;
 
-  // Neutrals derived to sit within the warm/blue world
-  static const Color ink = Color(0xFF13293D); // primary text
-  static const Color inkSoft = Color(0xFF4A5C6A); // secondary text
-  static const Color inkFaint = Color(0xFF8A97A1); // tertiary text
-  static const Color surface = Color(0xFFFFFFFF); // card surface
-  static const Color background = Color(0xFFF7F4EC); // app background (sand-tinted)
-  static const Color hairline = Color(0xFFE7E1D3); // subtle borders on sand
-  static const Color hairlineCool = Color(0xFFE2E8EE); // borders on cool surfaces
-
-  // Dose-response semantic colours (functional, brand-harmonised)
-  static const Color tookIt = Color(0xFF2E8B6F); // calm green
-  static const Color tookItBg = Color(0xFFE6F4EF);
-  static const Color notSure = Color(0xFFC9972E); // amber
-  static const Color notSureBg = Color(0xFFFBF3DD);
-  static const Color snoozed = Color(0xFF3D6B99); // waves blue
-  static const Color snoozedBg = Color(0xFFE9F5FA);
-  static const Color skipped = Color(0xFFC2554D); // muted red
-  static const Color skippedBg = Color(0xFFF9E9E7);
-
-  static const Color danger = Color(0xFFC2554D);
-
-  /// Soft brand gradient — swirled ocean tones, used on immersive screens.
-  static const LinearGradient oceanGradient = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [ocean, waves],
+  // ---- Gradients ----
+  static const LinearGradient pageGradient = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [background, backgroundWarm],
+    stops: [0.5, 1.0],
   );
 
-  /// Deep immersive gradient for hero / onboarding backgrounds.
+  /// Very subtle hero gradient (top-left → bottom-right), not flashy.
+  static const LinearGradient heroGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF1B4E80), primary, Color(0xFF0F3559)],
+    stops: [0.0, 0.5, 1.0],
+  );
+
+  static const LinearGradient oceanGradient = heroGradient;
   static const LinearGradient deepGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [oceanDeep, ocean, waves],
-    stops: [0.0, 0.55, 1.0],
+    colors: [primaryDeep, primary, secondary],
+    stops: [0.0, 0.6, 1.0],
   );
+
+  // ---- Elevation: soft Apple-style shadows (≈8% / blur 30 / offset 10) ----
+  static List<BoxShadow> cardShadow = [
+    BoxShadow(
+      color: const Color(0xFF123F6A).withValues(alpha: 0.08),
+      blurRadius: 30,
+      offset: const Offset(0, 10),
+      spreadRadius: -8,
+    ),
+    BoxShadow(
+      color: const Color(0xFF123F6A).withValues(alpha: 0.03),
+      blurRadius: 4,
+      offset: const Offset(0, 1),
+    ),
+  ];
+
+  static List<BoxShadow> softShadow = [
+    BoxShadow(
+      color: const Color(0xFF123F6A).withValues(alpha: 0.06),
+      blurRadius: 22,
+      offset: const Offset(0, 8),
+      spreadRadius: -8,
+    ),
+  ];
 }
 
-/// Bottle-cap colours — functional, carried over from the prototype so that a
-/// user's real-world cap colour matches the app.
+/// Standardised corner radii (spec).
+class AppRadius {
+  AppRadius._();
+  static const double button = 18;
+  static const double card = 28;
+  static const double input = 18;
+  static const double chip = 14;
+  static const double fab = 28;
+  static const double nav = 30;
+}
+
+/// 8-point spacing scale.
+class Space {
+  Space._();
+  static const double xs = 8;
+  static const double sm = 16;
+  static const double md = 24;
+  static const double lg = 32;
+  static const double xl = 40;
+}
+
+/// Bottle-cap colours — functional, so a user's real cap matches the app.
 class CapColorSpec {
   final String key;
   final String label;
@@ -66,7 +136,7 @@ class CapColorSpec {
 }
 
 const Map<String, CapColorSpec> kCapColors = {
-  'white': CapColorSpec('white', 'White', Color(0xFFF1F5F9), Color(0xFFCBD5E1)),
+  'white': CapColorSpec('white', 'White', Color(0xFFF1F5F9), Color(0xFFB9C4D0)),
   'pink': CapColorSpec('pink', 'Pink', Color(0xFFF9A8D4), Color(0xFFEC4899)),
   'tan': CapColorSpec('tan', 'Tan', Color(0xFFD4B896), Color(0xFFA16207)),
   'red': CapColorSpec('red', 'Red', Color(0xFFEF4444), Color(0xFFB91C1C)),
@@ -76,5 +146,4 @@ const Map<String, CapColorSpec> kCapColors = {
   'gray': CapColorSpec('gray', 'Gray', Color(0xFF9CA3AF), Color(0xFF4B5563)),
 };
 
-CapColorSpec capSpec(String? key) =>
-    kCapColors[key] ?? kCapColors['white']!;
+CapColorSpec capSpec(String? key) => kCapColors[key] ?? kCapColors['white']!;

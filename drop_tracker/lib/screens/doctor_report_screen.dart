@@ -176,7 +176,7 @@ class DoctorReportScreen extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 3),
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: BrandColors.background,
+          color: BrandColors.fill,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(

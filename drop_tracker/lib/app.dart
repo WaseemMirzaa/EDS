@@ -17,6 +17,11 @@ class DropTrackerApp extends StatelessWidget {
       title: 'Drop Tracker',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
+      // One soft page gradient sits behind every (transparent) scaffold.
+      builder: (context, child) => DecoratedBox(
+        decoration: const BoxDecoration(gradient: BrandColors.pageGradient),
+        child: child,
+      ),
       home: const _RootGate(),
     );
   }

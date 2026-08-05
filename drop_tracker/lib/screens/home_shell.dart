@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/app_theme.dart';
 import '../theme/brand.dart';
@@ -37,25 +38,39 @@ class _HomeShellState extends State<HomeShell> {
         ],
       ),
       bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: BrandColors.surface,
-          border: Border(top: BorderSide(color: BrandColors.hairline)),
+          boxShadow: [
+            BoxShadow(
+              color: BrandColors.ocean.withValues(alpha: 0.06),
+              blurRadius: 20,
+              offset: const Offset(0, -6),
+              spreadRadius: -4,
+            ),
+          ],
         ),
         child: SafeArea(
           top: false,
-          child: SizedBox(
-            height: 62,
-            child: Row(
-              children: [
-                for (var i = 0; i < _tabs.length; i++)
-                  Expanded(
-                    child: _NavItem(
-                      spec: _tabs[i],
-                      selected: _index == i,
-                      onTap: () => setState(() => _index = i),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: SizedBox(
+              height: 56,
+              child: Row(
+                children: [
+                  for (var i = 0; i < _tabs.length; i++)
+                    Expanded(
+                      child: _NavItem(
+                        spec: _tabs[i],
+                        selected: _index == i,
+                        onTap: () {
+                          if (_index == i) return;
+                          HapticFeedback.selectionClick();
+                          setState(() => _index = i);
+                        },
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -79,18 +94,28 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? BrandColors.ocean : BrandColors.inkFaint;
-    return InkResponse(
+    final color = selected ? BrandColors.primary : BrandColors.inkFaint;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      radius: 44,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(selected ? spec.activeIcon : spec.icon, color: color, size: 25),
-          const SizedBox(height: 3),
+          Icon(selected ? spec.activeIcon : spec.icon, color: color, size: 24),
+          const SizedBox(height: 4),
           Text(spec.label,
-              style: AppTypography.body(11,
-                  weight: selected ? FontWeight.w700 : FontWeight.w500, color: color)),
+              style: AppTypography.body(11.5, weight: selected ? FontWeight.w700 : FontWeight.w500, color: color)),
+          const SizedBox(height: 3),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeOutCubic,
+            height: 3,
+            width: selected ? 18 : 0,
+            decoration: BoxDecoration(
+              color: BrandColors.primary,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
         ],
       ),
     );

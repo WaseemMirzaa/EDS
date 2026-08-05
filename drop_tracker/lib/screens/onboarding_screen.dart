@@ -226,12 +226,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         const SizedBox(height: 24),
         Text('Your first name', style: AppTypography.body(14, weight: FontWeight.w600, color: BrandColors.inkSoft)),
         const SizedBox(height: 6),
-        TextField(
-          controller: _nameCtrl,
-          textCapitalization: TextCapitalization.words,
-          decoration: _inputDecoration('e.g. Margaret'),
-          style: AppTypography.body(17, weight: FontWeight.w600),
-        ),
+        AppField(controller: _nameCtrl, hint: 'e.g. Margaret', capitalization: TextCapitalization.words),
         const SizedBox(height: 20),
         Text('When do you usually wake up and go to bed?',
             style: AppTypography.body(14, weight: FontWeight.w600, color: BrandColors.inkSoft)),
@@ -336,7 +331,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             )),
         AppCard(
           onTap: _applying ? null : () => _finish(null),
-          color: BrandColors.background,
+          color: BrandColors.fill,
           child: Row(
             children: [
               Container(
@@ -378,18 +373,4 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  InputDecoration _inputDecoration(String hint) => InputDecoration(
-        hintText: hint,
-        filled: true,
-        fillColor: BrandColors.surface,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: BrandColors.hairlineCool, width: 1.5),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: BrandColors.ocean, width: 1.8),
-        ),
-      );
 }

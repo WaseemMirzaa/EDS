@@ -8,6 +8,7 @@ import '../models/enums.dart';
 import '../theme/app_theme.dart';
 import '../theme/brand.dart';
 import '../widgets/common.dart';
+import '../widgets/motion.dart';
 import 'doctor_report_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -97,20 +98,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
               ],
             ),
-            const Gap(16),
+            const Gap(20),
             Row(
               children: [
-                Expanded(child: _stat('7-day', '${a7.pct}%', '${a7.taken}/${a7.scheduled}')),
-                const SizedBox(width: 10),
-                Expanded(child: _stat('30-day', '${a30.pct}%', '${a30.taken}/${a30.scheduled}')),
-                const SizedBox(width: 10),
-                Expanded(child: _stat('Streak', '$streak 🔥', 'perfect days')),
+                Expanded(child: _stat(Icons.calendar_view_week_rounded, '7-day', a7.pct, '%', '${a7.taken}/${a7.scheduled} doses', BrandColors.primary)),
+                const SizedBox(width: 12),
+                Expanded(child: _stat(Icons.calendar_month_rounded, '30-day', a30.pct, '%', '${a30.taken}/${a30.scheduled} doses', BrandColors.secondary)),
+                const SizedBox(width: 12),
+                Expanded(child: _stat(Icons.local_fire_department_rounded, 'Streak', streak, '', 'perfect days', BrandColors.warning)),
               ],
             ),
-            const Gap(16),
+            const Gap(20),
             _calendar(meds, events, wStart, wEnd, today),
             if (_selectedDay != null) ...[
-              const Gap(14),
+              const Gap(16),
               _dayDetail(meds, events, wStart, wEnd),
             ],
           ],
@@ -119,17 +120,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _stat(String label, String value, String sub) {
+  Widget _stat(IconData icon, String label, int value, String suffix, String sub, Color color) {
     return AppCard(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
       child: Column(
         children: [
-          Text(label, style: AppTypography.body(12, weight: FontWeight.w600, color: BrandColors.inkFaint)),
-          const SizedBox(height: 4),
-          Text(value,
-              maxLines: 1,
-              style: AppTypography.display(22, weight: FontWeight.w600)),
-          const SizedBox(height: 2),
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(9)),
+            child: Icon(icon, size: 17, color: color),
+          ),
+          const SizedBox(height: 10),
+          CountUp(value, suffix: suffix, style: AppTypography.display(24, weight: FontWeight.w700, color: BrandColors.ink)),
+          const SizedBox(height: 3),
+          Text(label, style: AppTypography.body(12.5, weight: FontWeight.w700, color: BrandColors.ink)),
           Text(sub,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -246,20 +251,28 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
 
     final selected = ds == _selectedDay;
+    final isToday = ds == today;
     return GestureDetector(
       onTap: () => setState(() => _selectedDay = selected ? null : ds),
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
         decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(10),
+          color: selected ? BrandColors.primary : bg,
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: selected ? BrandColors.ocean : (border ?? Colors.transparent),
-            width: selected ? 2 : 1,
+            color: selected
+                ? BrandColors.primary
+                : isToday
+                    ? BrandColors.primary
+                    : (border ?? Colors.transparent),
+            width: (selected || isToday) ? 1.6 : 1,
           ),
         ),
         alignment: Alignment.center,
         child: Text('${day.day}',
-            style: AppTypography.body(13, weight: FontWeight.w600, color: fg)),
+            style: AppTypography.body(13,
+                weight: isToday || selected ? FontWeight.w700 : FontWeight.w600,
+                color: selected ? Colors.white : fg)),
       ),
     );
   }

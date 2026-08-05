@@ -10,6 +10,7 @@ import '../theme/brand.dart';
 import '../widgets/common.dart';
 import '../widgets/disclaimer_banner.dart';
 import '../widgets/drop_logo.dart';
+import '../widgets/motion.dart';
 import 'battery_optimization_screen.dart';
 
 // Placeholder brand URLs — swap for the live legal pages before store submission.
@@ -116,11 +117,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // Profile
             _section('Your profile'),
             _label('Your name'),
-            TextField(
+            AppField(
               controller: _name,
-              textCapitalization: TextCapitalization.words,
-              decoration: _dec('Your first name'),
-              style: AppTypography.body(16, weight: FontWeight.w600),
+              hint: 'Your first name',
+              capitalization: TextCapitalization.words,
             ),
             const Gap(14),
             _label('Waking hours'),
@@ -313,44 +313,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
     Color color = BrandColors.ink,
     IconData trailing = Icons.chevron_right_rounded,
   }) {
-    return InkWell(
+    final isDanger = color == BrandColors.danger;
+    final iconColor = color == BrandColors.ink ? BrandColors.primary : color;
+    return Pressable(
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 60),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        color: Colors.transparent,
         child: Row(
           children: [
-            Icon(icon, size: 22, color: color == BrandColors.ink ? BrandColors.waves : color),
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: (isDanger ? BrandColors.danger : BrandColors.primary).withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Icon(icon, size: 20, color: iconColor),
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: AppTypography.body(15, weight: FontWeight.w600, color: color)),
-                  if (subtitle != null)
-                    Text(subtitle,
-                        style: AppTypography.body(12, color: BrandColors.inkFaint)),
+                  Text(title, style: AppTypography.body(15.5, weight: FontWeight.w600, color: color)),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 1),
+                    Text(subtitle, style: AppTypography.body(12.5, color: BrandColors.inkFaint)),
+                  ],
                 ],
               ),
             ),
-            Icon(trailing, size: 18, color: BrandColors.inkFaint),
+            Icon(trailing, size: 20, color: BrandColors.inkFaint),
           ],
         ),
       ),
     );
   }
 
-  InputDecoration _dec(String hint) => InputDecoration(
-        hintText: hint,
-        filled: true,
-        fillColor: BrandColors.surface,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: BrandColors.hairlineCool, width: 1.5),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: BrandColors.ocean, width: 1.8),
-        ),
-      );
 }

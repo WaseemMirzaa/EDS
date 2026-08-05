@@ -90,7 +90,7 @@ class _DidITakeItSheet extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: BrandColors.background,
+        color: BrandColors.fill,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: BrandColors.hairline),
       ),

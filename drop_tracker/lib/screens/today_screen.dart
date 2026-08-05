@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../data/dose_logic.dart';
@@ -13,8 +14,9 @@ import '../theme/brand.dart';
 import '../widgets/common.dart';
 import '../widgets/confidence_check_sheet.dart';
 import '../widgets/did_i_take_it_sheet.dart';
-import '../widgets/dose_card.dart';
+import '../widgets/dose_timeline.dart';
 import '../widgets/drop_logo.dart';
+import '../widgets/motion.dart';
 import '../widgets/next_dose_banner.dart';
 
 class TodayScreen extends StatefulWidget {
@@ -79,6 +81,11 @@ class _TodayScreenState extends State<TodayScreen> {
     final response = await showConfidenceCheck(context, dose);
     _sheetOpen = false;
     if (response != null) {
+      if (response == DoseResponse.tookIt) {
+        HapticFeedback.mediumImpact();
+      } else {
+        HapticFeedback.selectionClick();
+      }
       await store.logResponse(dose, response);
       if (mounted && response == DoseResponse.snoozed) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -126,18 +133,24 @@ class _TodayScreenState extends State<TodayScreen> {
       body: SafeArea(
         bottom: false,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
           children: [
             _header(firstName),
-            const Gap(16),
-            NextDoseBanner(nextDose: nextDose, allDone: allDone),
+            const Gap(20),
+            FadeSlideIn(
+              child: NextDoseBanner(
+                nextDose: nextDose,
+                allDone: allDone,
+                onTapNext: nextDose == null ? null : () => _openConfidenceCheck(nextDose!),
+              ),
+            ),
             if (doses.isNotEmpty) ...[
-              const Gap(20),
-              _progress(doneCount, doses.length, progress),
+              const Gap(24),
+              FadeSlideIn(delay: const Duration(milliseconds: 80), child: _progress(doneCount, doses.length, progress)),
             ],
-            const Gap(16),
+            const Gap(20),
             if (doses.isEmpty)
-              _emptyState()
+              FadeSlideIn(delay: const Duration(milliseconds: 120), child: _emptyState())
             else
               ..._doseList(doses, events),
             if (notSureWeek >= 3) ...[
@@ -174,11 +187,21 @@ class _TodayScreenState extends State<TodayScreen> {
                   style: AppTypography.body(14, weight: FontWeight.w500, color: BrandColors.inkFaint)),
               const SizedBox(height: 2),
               Text('$firstName 👋',
-                  style: AppTypography.display(30, weight: FontWeight.w600)),
+                  style: AppTypography.display(30, weight: FontWeight.w700)),
             ],
           ),
         ),
-        const DropBadge(size: 44),
+        Container(
+          width: 50,
+          height: 50,
+          decoration: BoxDecoration(
+            color: BrandColors.surface,
+            shape: BoxShape.circle,
+            boxShadow: BrandColors.softShadow,
+          ),
+          alignment: Alignment.center,
+          child: const DropBadge(size: 34),
+        ),
       ],
     );
   }
@@ -193,17 +216,23 @@ class _TodayScreenState extends State<TodayScreen> {
             Text('Today\'s progress',
                 style: AppTypography.body(14, weight: FontWeight.w600, color: BrandColors.inkSoft)),
             Text('$done of $total done',
-                style: AppTypography.body(14, weight: FontWeight.w700, color: BrandColors.ocean)),
+                style: AppTypography.body(14, weight: FontWeight.w700, color: BrandColors.primary)),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
+        // Thin, animated track.
         ClipRRect(
           borderRadius: BorderRadius.circular(999),
-          child: LinearProgressIndicator(
-            value: progress,
-            minHeight: 10,
-            backgroundColor: BrandColors.hairline,
-            valueColor: const AlwaysStoppedAnimation(BrandColors.ocean),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: progress),
+            duration: const Duration(milliseconds: 700),
+            curve: Curves.easeOutCubic,
+            builder: (_, v, __) => LinearProgressIndicator(
+              value: v,
+              minHeight: 6,
+              backgroundColor: BrandColors.border,
+              valueColor: const AlwaysStoppedAnimation(BrandColors.primary),
+            ),
           ),
         ),
       ],
@@ -215,23 +244,28 @@ class _TodayScreenState extends State<TodayScreen> {
     for (var i = 0; i < doses.length; i++) {
       final dose = doses[i];
       final event = DoseLogic.matchDoseToEvent(dose, events.cast());
-      widgets.add(Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: DoseCard(
-          dose: dose,
-          event: event,
-          onCheck: () => _openConfidenceCheck(dose),
+      final t = DoseLogic.formatTime(dose.scheduledHhmm).split(' ');
+      widgets.add(FadeSlideIn(
+        delay: Duration(milliseconds: 120 + 50 * i),
+        child: TimelineRow(
+          timeTop: t.first,
+          timeBottom: t.last,
+          dotColorKey: dose.bottleCapColor,
+          extendTop: i > 0,
+          extendBottom: i < doses.length - 1,
+          child: DoseTimelineCard(
+            dose: dose,
+            event: event,
+            onCheck: () => _openConfidenceCheck(dose),
+          ),
         ),
       ));
-      // Inline "wait between drops" spacing banner.
+      // Inline "wait between drops" notification, threaded onto the timeline.
       if (i < doses.length - 1) {
         final next = doses[i + 1];
         final diff = _minDiff(dose.scheduledHhmm, next.scheduledHhmm);
         if (diff <= 5 && (dose.instructions.wait5min || next.instructions.wait5min)) {
-          widgets.add(Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _spacingBanner(),
-          ));
+          widgets.add(const TimelineRow(child: WaitBanner()));
         }
       }
     }
@@ -242,27 +276,6 @@ class _TodayScreenState extends State<TodayScreen> {
     final pa = a.split(':').map(int.parse).toList();
     final pb = b.split(':').map(int.parse).toList();
     return ((pb[0] * 60 + pb[1]) - (pa[0] * 60 + pa[1])).abs();
-  }
-
-  Widget _spacingBanner() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: BrandColors.cloud,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: BrandColors.hairlineCool),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.hourglass_bottom_rounded, size: 16, color: BrandColors.waves),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text('Wait 5 minutes between these drops',
-                style: AppTypography.body(12, weight: FontWeight.w600, color: BrandColors.ocean)),
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _emptyState() {

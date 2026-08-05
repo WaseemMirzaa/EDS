@@ -1,0 +1,49 @@
+name: drop_tracker
+description: "Drop Tracker by Eye Drop Shop — eye drop reminders & adherence tracking."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State management
+  provider: ^6.1.2
+
+  # Local persistence (guest mode / local database)
+  shared_preferences: ^2.3.2
+
+  # Real native reminders
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.9.4
+  flutter_timezone: ^3.0.1
+
+  # Branding / typography
+  google_fonts: ^6.2.1
+
+  # Formatting & utilities
+  intl: ^0.19.0
+  uuid: ^4.5.1
+
+  # Doctor report: print / save as PDF
+  pdf: ^3.11.1
+  printing: ^5.13.4
+
+  # Calendar (.ics) export & sharing
+  share_plus: ^10.1.2
+  path_provider: ^2.1.5
+
+  # Privacy / terms / battery guidance / account deletion links
+  url_launcher: ^6.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

@@ -7,36 +7,36 @@ import 'package:flutter/material.dart';
 class BrandColors {
   BrandColors._();
 
-  // Core — minimalist clinical cyan/teal (uipro: calm cyan + health green)
-  static const Color primary = Color(0xFF0891B2); // calm cyan
-  static const Color primaryDeep = Color(0xFF0E7490); // deeper cyan
-  static const Color secondary = Color(0xFF3E9FBB); // muted cyan
+  // Core — deep medical blue on white
+  static const Color primary = Color(0xFF123F6A); // deep medical blue
+  static const Color primaryDeep = Color(0xFF0E3157); // gradient partner
+  static const Color secondary = Color(0xFF5B86B4); // soft blue
   static const Color gold = Color(0xFFE6B84C); // brand drop mark
 
   static const Color background = Color(0xFFFFFFFF); // white app background
   static const Color backgroundWarm = Color(0xFFFFFFFF);
   static const Color surface = Color(0xFFFFFFFF);
-  static const Color surfaceTint = Color(0xFFFBFEFF); // barely-there cool card top
-  static const Color fill = Color(0xFFEFF5F7); // subtle inner fill
+  static const Color surfaceTint = Color(0xFFFCFDFF); // barely-there cool card top
+  static const Color fill = Color(0xFFF1F4F8); // subtle inner fill
 
-  static const Color ink = Color(0xFF143C4A); // dark teal text (high contrast)
-  static const Color inkSoft = Color(0xFF5B7480); // secondary text
-  static const Color inkFaint = Color(0xFF9CB0B8); // tertiary text
-  static const Color border = Color(0xFFE6EEF1); // cool hairline
-  static const Color borderCool = Color(0xFFE6EEF1);
+  static const Color ink = Color(0xFF172B45); // primary text (never pure black)
+  static const Color inkSoft = Color(0xFF6D7B8C); // secondary text
+  static const Color inkFaint = Color(0xFF9AA6B2); // tertiary text
+  static const Color border = Color(0xFFE8E5DE); // hairline
+  static const Color borderCool = Color(0xFFE4EAF1);
 
   // Semantic
-  static const Color success = Color(0xFF059669); // health green
-  static const Color successBg = Color(0xFFE6F5EF);
-  static const Color warning = Color(0xFFE0A32E);
-  static const Color warningText = Color(0xFF9A6E12);
-  static const Color warningBg = Color(0xFFFBF2DC);
-  static const Color danger = Color(0xFFDC2626);
+  static const Color success = Color(0xFF35C56D);
+  static const Color successBg = Color(0xFFE8F7EE);
+  static const Color warning = Color(0xFFF2B63A);
+  static const Color warningText = Color(0xFFB07C15);
+  static const Color warningBg = Color(0xFFFCF3DD);
+  static const Color danger = Color(0xFFE65A5A);
   static const Color dangerBg = Color(0xFFFBEAEA);
-  static const Color infoBg = Color(0xFFE6F4F8);
+  static const Color infoBg = Color(0xFFEAF1F8);
 
   // Soft tinted surface for chips / secondary backgrounds
-  static const Color cloud = Color(0xFFE6F4F8);
+  static const Color cloud = Color(0xFFEAF1F8);
 
   // ---- Back-compat aliases (older widgets referenced these names) ----
   static const Color ocean = primary;
@@ -64,12 +64,12 @@ class BrandColors {
     stops: [0.5, 1.0],
   );
 
-  /// Near-flat hero surface — minimalist (uipro: avoid flashy gradients).
+  /// Subtle hero gradient (top-left → bottom-right).
   static const LinearGradient heroGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF0B9DC2), primary],
-    stops: [0.0, 1.0],
+    colors: [Color(0xFF1B4E80), primary, Color(0xFF0F3559)],
+    stops: [0.0, 0.5, 1.0],
   );
 
   static const LinearGradient oceanGradient = heroGradient;
@@ -80,22 +80,27 @@ class BrandColors {
     stops: [0.0, 0.6, 1.0],
   );
 
-  // ---- Elevation: near-invisible (minimalist relies on borders + space) ----
+  // ---- Elevation: soft Apple-style shadows ----
   static List<BoxShadow> cardShadow = [
     BoxShadow(
-      color: const Color(0xFF0F172A).withValues(alpha: 0.05),
-      blurRadius: 20,
-      offset: const Offset(0, 6),
-      spreadRadius: -6,
+      color: const Color(0xFF123F6A).withValues(alpha: 0.08),
+      blurRadius: 30,
+      offset: const Offset(0, 10),
+      spreadRadius: -8,
+    ),
+    BoxShadow(
+      color: const Color(0xFF123F6A).withValues(alpha: 0.03),
+      blurRadius: 4,
+      offset: const Offset(0, 1),
     ),
   ];
 
   static List<BoxShadow> softShadow = [
     BoxShadow(
-      color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-      blurRadius: 14,
-      offset: const Offset(0, 4),
-      spreadRadius: -6,
+      color: const Color(0xFF123F6A).withValues(alpha: 0.06),
+      blurRadius: 22,
+      offset: const Offset(0, 8),
+      spreadRadius: -8,
     ),
   ];
 }

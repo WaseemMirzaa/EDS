@@ -64,15 +64,17 @@ class BatteryPermissionScreen extends StatelessWidget {
                 style: AppTypography.body(16, weight: FontWeight.w500, color: BrandColors.inkSoft, height: 1.5),
               ),
               const Gap(24),
-              if (isIOS) ...[
-                _step(1, 'Tap “Allow without restrictions” below'),
-                _step(2, 'Turn on Allow Notifications and Time-Sensitive Notifications'),
-                _step(3, 'Add Drop Tracker to any Focus so alerts still come through, and avoid relying on Low Power Mode'),
-              ] else ...[
-                _step(1, 'Tap “Allow without restrictions” below'),
-                _step(2, 'Open Battery and choose Unrestricted (or “Don’t optimise”)'),
-                _step(3, 'On Samsung / Xiaomi / Huawei, add to “Never sleeping apps”'),
-              ],
+              AppCard(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                child: Column(
+                  children: [
+                    for (var i = 0; i < _steps(isIOS).length; i++) ...[
+                      if (i > 0) Divider(height: 1, thickness: 1, color: BrandColors.border.withValues(alpha: 0.7)),
+                      _step(i + 1, _steps(isIOS)[i]),
+                    ],
+                  ],
+                ),
+              ),
               const Spacer(flex: 3),
               PrimaryButton(
                 label: 'Allow without restrictions',
@@ -101,9 +103,21 @@ class BatteryPermissionScreen extends StatelessWidget {
     );
   }
 
+  List<String> _steps(bool isIOS) => isIOS
+      ? const [
+          'Tap “Allow without restrictions” below',
+          'Turn on Allow Notifications and Time-Sensitive Notifications',
+          'Add Drop Tracker to any Focus so alerts still come through, and avoid relying on Low Power Mode',
+        ]
+      : const [
+          'Tap “Allow without restrictions” below',
+          'Open Battery and choose Unrestricted (or “Don’t optimise”)',
+          'On Samsung / Xiaomi / Huawei, add to “Never sleeping apps”',
+        ];
+
   Widget _step(int n, String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(vertical: 14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -117,7 +131,7 @@ class BatteryPermissionScreen extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.only(top: 3),
               child: Text(text, style: AppTypography.body(14.5, weight: FontWeight.w500, height: 1.4)),
             ),
           ),

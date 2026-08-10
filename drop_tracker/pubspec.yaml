@@ -24,6 +24,7 @@ dependencies:
 
   # Branding / typography
   google_fonts: ^6.2.1
+  flutter_svg: ^2.0.10+1
 
   # Formatting & utilities
   intl: ^0.19.0

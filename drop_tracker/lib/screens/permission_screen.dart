@@ -87,9 +87,18 @@ class _PermissionScreenState extends State<PermissionScreen> with WidgetsBinding
                 style: AppTypography.body(16, weight: FontWeight.w500, color: BrandColors.inkSoft, height: 1.5),
               ),
               const Gap(24),
-              _bullet(Icons.schedule_rounded, 'On-time alerts for every scheduled dose'),
-              _bullet(Icons.bedtime_off_rounded, 'Nothing missed while the app is in the background'),
-              _bullet(Icons.lock_outline_rounded, 'Private — everything stays on your device'),
+              AppCard(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                child: Column(
+                  children: [
+                    _featureRow(Icons.schedule_rounded, 'On-time alerts', 'A reminder for every scheduled dose.'),
+                    const _RowDivider(),
+                    _featureRow(Icons.bedtime_off_rounded, 'Works in the background', 'Nothing missed while the app is closed.'),
+                    const _RowDivider(),
+                    _featureRow(Icons.lock_outline_rounded, 'Private by design', 'Everything stays on your device.'),
+                  ],
+                ),
+              ),
               const Spacer(flex: 3),
               if (_denied) ...[
                 Container(
@@ -135,19 +144,28 @@ class _PermissionScreenState extends State<PermissionScreen> with WidgetsBinding
     );
   }
 
-  Widget _bullet(IconData icon, String text) {
+  Widget _featureRow(IconData icon, String title, String subtitle) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(vertical: 14),
       child: Row(
         children: [
           Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(color: BrandColors.primary.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(10)),
-            child: Icon(icon, size: 18, color: BrandColors.primary),
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(color: BrandColors.primary.withValues(alpha: 0.09), borderRadius: BorderRadius.circular(12)),
+            child: Icon(icon, size: 21, color: BrandColors.primary),
           ),
-          const SizedBox(width: 12),
-          Expanded(child: Text(text, style: AppTypography.body(14.5, weight: FontWeight.w500, height: 1.35))),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: AppTypography.body(15.5, weight: FontWeight.w700, color: BrandColors.ink)),
+                const SizedBox(height: 2),
+                Text(subtitle, style: AppTypography.body(13, weight: FontWeight.w500, color: BrandColors.inkSoft, height: 1.3)),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -159,4 +177,12 @@ class _PermissionScreenState extends State<PermissionScreen> with WidgetsBinding
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (_) {}
   }
+}
+
+/// Hairline divider between rows inside a feature/step card.
+class _RowDivider extends StatelessWidget {
+  const _RowDivider();
+  @override
+  Widget build(BuildContext context) =>
+      Divider(height: 1, thickness: 1, color: BrandColors.border.withValues(alpha: 0.7));
 }

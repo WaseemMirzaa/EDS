@@ -12,6 +12,7 @@ import '../widgets/common.dart';
 import '../widgets/disclaimer_banner.dart';
 import '../widgets/drop_logo.dart';
 import '../widgets/motion.dart';
+import '../widgets/shop_banner.dart';
 import 'battery_optimization_screen.dart';
 import 'profile_screen.dart';
 
@@ -102,6 +103,15 @@ class SettingsScreen extends StatelessWidget {
                   const Icon(Icons.chevron_right_rounded, color: BrandColors.inkFaint),
                 ],
               ),
+            ),
+            const Gap(24),
+
+            // Shop
+            const SectionLabel('Eye Drop Shop'),
+            const ShopRestockCard(
+              title: 'Shop doctor-formulated drops',
+              subtitle: 'Dry-eye care & essentials at eyedropshop.ca.',
+              campaign: 'settings_shop',
             ),
             const Gap(24),
 

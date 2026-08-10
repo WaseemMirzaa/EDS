@@ -18,6 +18,7 @@ import '../widgets/dose_timeline.dart';
 import '../widgets/drop_logo.dart';
 import '../widgets/motion.dart';
 import '../widgets/next_dose_banner.dart';
+import '../widgets/shop_banner.dart';
 
 class TodayScreen extends StatefulWidget {
   const TodayScreen({super.key});
@@ -170,6 +171,8 @@ class _TodayScreenState extends State<TodayScreen> {
                 ),
               ),
             ],
+            const Gap(20),
+            FadeSlideIn(delay: const Duration(milliseconds: 160), child: const ShopBanner()),
           ],
         ),
       ),

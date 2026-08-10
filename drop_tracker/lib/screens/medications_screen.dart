@@ -13,6 +13,7 @@ import '../widgets/cap_color_dot.dart';
 import '../widgets/common.dart';
 import '../widgets/drop_logo.dart';
 import '../widgets/motion.dart';
+import '../widgets/shop_banner.dart';
 import 'medication_form_screen.dart';
 
 class MedicationsScreen extends StatelessWidget {
@@ -110,12 +111,20 @@ class MedicationsScreen extends StatelessWidget {
                   ? _empty(context)
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-                      itemCount: meds.length,
+                      itemCount: meds.length + 1,
                       separatorBuilder: (_, __) => const SizedBox(height: 16),
-                      itemBuilder: (_, i) => FadeSlideIn(
-                        delay: Duration(milliseconds: 60 * i),
-                        child: _medCard(context, store, meds[i], today),
-                      ),
+                      itemBuilder: (_, i) {
+                        if (i == meds.length) {
+                          return FadeSlideIn(
+                            delay: Duration(milliseconds: 60 * i),
+                            child: const ShopRestockCard(campaign: 'meds_restock'),
+                          );
+                        }
+                        return FadeSlideIn(
+                          delay: Duration(milliseconds: 60 * i),
+                          child: _medCard(context, store, meds[i], today),
+                        );
+                      },
                     ),
             ),
           ],

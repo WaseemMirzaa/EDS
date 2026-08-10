@@ -274,16 +274,22 @@ class _ForgotFormState extends State<_ForgotForm> {
   @override
   Widget build(BuildContext context) {
     return AuthScaffold(
-      children: [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: InkResponse(
-            radius: 24,
-            onTap: widget.onBack,
-            child: const Padding(padding: EdgeInsets.all(6), child: Icon(Icons.arrow_back_rounded, color: AuthColors.textPrimary)),
+      leading: Semantics(
+        button: true,
+        label: 'Back',
+        child: InkResponse(
+          radius: 26,
+          onTap: widget.onBack,
+          child: Container(
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(color: AuthColors.surfaceVariant, shape: BoxShape.circle),
+            child: const Icon(Icons.arrow_back_rounded, size: 22, color: AuthColors.textPrimary),
           ),
         ),
-        const SizedBox(height: 24),
+      ),
+      children: [
         AuthHero(
           title: _sent ? 'Check your email' : 'Reset password',
           subtitle: _sent

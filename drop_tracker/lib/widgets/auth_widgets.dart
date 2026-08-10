@@ -36,7 +36,10 @@ class AuthColors {
 /// on small ones, content capped at 420dp, with a whisper-soft top tint.
 class AuthScaffold extends StatelessWidget {
   final List<Widget> children;
-  const AuthScaffold({super.key, required this.children});
+  /// Optional control pinned to the top-left (e.g. a back button), kept out of
+  /// the vertically-centred content so it stays at the top.
+  final Widget? leading;
+  const AuthScaffold({super.key, required this.children, this.leading});
 
   @override
   Widget build(BuildContext context) {
@@ -65,9 +68,9 @@ class AuthScaffold extends StatelessWidget {
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) => SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+                padding: EdgeInsets.fromLTRB(24, leading != null ? 56 : 20, 24, 28),
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight - 48),
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight - (leading != null ? 84 : 48)),
                   child: Center(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 420),
@@ -82,6 +85,14 @@ class AuthScaffold extends StatelessWidget {
               ),
             ),
           ),
+          // Pinned top-left control (independent of the centred content).
+          if (leading != null)
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: leading),
+              ),
+            ),
         ],
       ),
     );

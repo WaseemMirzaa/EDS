@@ -138,6 +138,57 @@ class _Trust extends StatelessWidget {
   }
 }
 
+/// Slim one-line shop link for secondary screens (History, reports).
+class ShopLinkStrip extends StatelessWidget {
+  final String label;
+  final String campaign;
+  const ShopLinkStrip({
+    super.key,
+    this.label = 'Shop dry-eye care at eyedropshop.ca',
+    this.campaign = 'link_strip',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Pressable(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        Shop.open(context, campaign: campaign);
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        height: 52,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: BrandColors.cloud,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: BrandColors.primary.withValues(alpha: 0.10)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(color: BrandColors.surface, borderRadius: BorderRadius.circular(9)),
+              alignment: Alignment.center,
+              child: DropMark(size: 16, color: BrandColors.gold, filled: true),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.body(13.5, weight: FontWeight.w600, color: BrandColors.ink)),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.arrow_outward_rounded, size: 17, color: BrandColors.primary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Compact "restock" card for lists (Medications) and rows (Settings).
 class ShopRestockCard extends StatelessWidget {
   final String title;

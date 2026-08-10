@@ -9,6 +9,7 @@ import '../theme/app_theme.dart';
 import '../theme/brand.dart';
 import '../widgets/common.dart';
 import '../widgets/motion.dart';
+import '../widgets/shop_banner.dart';
 import 'doctor_report_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -114,6 +115,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
               const Gap(16),
               _dayDetail(meds, events, wStart, wEnd),
             ],
+            const Gap(20),
+            const ShopLinkStrip(campaign: 'history_strip'),
           ],
         ),
       ),

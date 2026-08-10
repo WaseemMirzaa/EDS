@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -80,9 +78,9 @@ class _RootGateState extends State<_RootGate> with WidgetsBindingObserver {
     if (!store.loaded || !auth.loaded || !_splashElapsed) {
       return const SplashScreen();
     }
-    // Gated flow: notifications → battery (Android) → auth → onboarding → home.
+    // Gated flow: notifications → no-restrictions (iOS & Android) → auth → …
     if (!auth.permissionsDone) return const PermissionScreen();
-    if (Platform.isAndroid && !auth.batteryDone) return const BatteryPermissionScreen();
+    if (!auth.batteryDone) return const BatteryPermissionScreen();
     if (!auth.signedIn) return const AuthFlow();
     if (!store.user.onboarded) return const OnboardingScreen();
     return const HomeShell();

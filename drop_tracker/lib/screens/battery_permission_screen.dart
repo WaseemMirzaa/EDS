@@ -10,22 +10,26 @@ import '../theme/brand.dart';
 import '../widgets/common.dart';
 import '../widgets/drop_logo.dart';
 
-/// Android-only gate shown right after the notification screen. Guides the
-/// user to turn off battery restrictions so scheduled reminders aren't killed
-/// by the OS (Proposal §04). iOS never reaches this screen.
+/// Mandatory "no restrictions" gate shown right after the notification screen,
+/// on BOTH platforms. Guides the user to let reminders run unrestricted so
+/// scheduled doses aren't delayed or dropped (Proposal §04):
+///  • iOS   → Time-Sensitive alerts + Focus + Low Power
+///  • Android → unrestricted battery usage
 class BatteryPermissionScreen extends StatelessWidget {
   const BatteryPermissionScreen({super.key});
 
   Future<void> _openSettings(BuildContext context) async {
-    // Best-effort: opens the app's system settings page where "Unrestricted"
-    // battery usage lives. (A real ignore-battery-optimizations intent is wired
-    // with a platform channel in M2.)
+    // iOS → app settings (Notifications live here); Android → app details
+    // page where "Unrestricted" battery usage lives.
+    final uri = Uri.parse(Platform.isIOS ? 'app-settings:' : 'package:');
     try {
-      await launchUrl(Uri.parse('package:'), mode: LaunchMode.externalApplication);
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Open Settings ▸ Apps ▸ Drop Tracker ▸ Battery.')),
+          SnackBar(content: Text(Platform.isIOS
+              ? 'Open Settings ▸ Drop Tracker ▸ Notifications.'
+              : 'Open Settings ▸ Apps ▸ Drop Tracker ▸ Battery.')),
         );
       }
     }
@@ -33,6 +37,7 @@ class BatteryPermissionScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isIOS = Platform.isIOS;
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -46,22 +51,31 @@ class BatteryPermissionScreen extends StatelessWidget {
                 height: 84,
                 decoration: const BoxDecoration(color: BrandColors.cloud, shape: BoxShape.circle),
                 alignment: Alignment.center,
-                child: const Icon(Icons.battery_charging_full_rounded, size: 40, color: BrandColors.primary),
+                child: Icon(isIOS ? Icons.notifications_active_rounded : Icons.battery_charging_full_rounded,
+                    size: 40, color: BrandColors.primary),
               ),
               const Gap(28),
               Text('Keep reminders reliable', style: AppTypography.display(32, weight: FontWeight.w700)),
               const Gap(12),
               Text(
-                'Android can pause background apps to save power, which may delay or drop your dose reminders. Allow Drop Tracker to run unrestricted so alerts always arrive on time.',
+                isIOS
+                    ? 'iOS can hold back notifications during Focus or Low Power Mode, which may delay a dose reminder. Allow Drop Tracker to alert you without restrictions so reminders always break through.'
+                    : 'Android can pause background apps to save power, which may delay or drop your dose reminders. Allow Drop Tracker to run unrestricted so alerts always arrive on time.',
                 style: AppTypography.body(16, weight: FontWeight.w500, color: BrandColors.inkSoft, height: 1.5),
               ),
               const Gap(24),
-              _step(1, 'Tap “Turn off restrictions” below'),
-              _step(2, 'Open Battery and choose Unrestricted (or “Don’t optimise”)'),
-              _step(3, 'On Samsung / Xiaomi / Huawei, add to “Never sleeping apps”'),
+              if (isIOS) ...[
+                _step(1, 'Tap “Allow without restrictions” below'),
+                _step(2, 'Turn on Allow Notifications and Time-Sensitive Notifications'),
+                _step(3, 'Add Drop Tracker to any Focus so alerts still come through, and avoid relying on Low Power Mode'),
+              ] else ...[
+                _step(1, 'Tap “Allow without restrictions” below'),
+                _step(2, 'Open Battery and choose Unrestricted (or “Don’t optimise”)'),
+                _step(3, 'On Samsung / Xiaomi / Huawei, add to “Never sleeping apps”'),
+              ],
               const Spacer(flex: 3),
               PrimaryButton(
-                label: 'Turn off restrictions',
+                label: 'Allow without restrictions',
                 icon: Icons.settings_rounded,
                 onPressed: () => _openSettings(context),
               ),
@@ -112,6 +126,3 @@ class BatteryPermissionScreen extends StatelessWidget {
     );
   }
 }
-
-/// Guard so callers can cheaply check whether this step applies.
-bool get batteryStepApplies => Platform.isAndroid;

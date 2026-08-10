@@ -12,7 +12,6 @@ enum AuthProvider { email, google, apple }
 /// local session so the flow is fully navigable; wire real providers in M2.
 class AuthController extends ChangeNotifier {
   static const _sessionKey = 'droptracker_auth_session';
-  static const _permKey = 'droptracker_permissions_done';
 
   late SharedPreferences _prefs;
   bool _loaded = false;
@@ -20,7 +19,10 @@ class AuthController extends ChangeNotifier {
   String? _email;
   String _name = '';
   AuthProvider _provider = AuthProvider.email;
+  // Permission gates are intentionally NOT persisted — the permission screens
+  // are mandatory on every launch (reset to false each cold start).
   bool _permissionsDone = false;
+  bool _batteryDone = false;
 
   bool get loaded => _loaded;
   bool get signedIn => _email != null;
@@ -28,6 +30,7 @@ class AuthController extends ChangeNotifier {
   String get name => _name;
   AuthProvider get provider => _provider;
   bool get permissionsDone => _permissionsDone;
+  bool get batteryDone => _batteryDone;
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
@@ -43,7 +46,7 @@ class AuthController extends ChangeNotifier {
         );
       } catch (_) {}
     }
-    _permissionsDone = _prefs.getBool(_permKey) ?? false;
+    // _permissionsDone / _batteryDone stay false on every launch (not loaded).
     _loaded = true;
     notifyListeners();
   }
@@ -104,9 +107,14 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Session-only (not persisted) so the gate reappears next launch.
   Future<void> markPermissionsDone() async {
     _permissionsDone = true;
-    await _prefs.setBool(_permKey, true);
+    notifyListeners();
+  }
+
+  Future<void> markBatteryDone() async {
+    _batteryDone = true;
     notifyListeners();
   }
 }

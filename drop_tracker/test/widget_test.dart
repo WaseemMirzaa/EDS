@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:drop_tracker/data/dose_logic.dart';
+import 'package:drop_tracker/data/presets.dart';
 import 'package:drop_tracker/models/enums.dart';
 import 'package:drop_tracker/models/medication.dart';
 
@@ -124,6 +125,25 @@ void main() {
       ];
       final doses = DoseLogic.getDosesForDate(meds, '2026-08-11');
       expect(doses.map((d) => d.scheduledHhmm).toList(), ['07:00', '20:00']);
+    });
+
+    test(
+        'regression: cataract-surgery preset (antibiotic + steroid share every '
+        'time) spaces the steroid 5 min after each shared time — DropStore.'
+        'applyPreset assigns each a distinct id via uuid.v4() before this runs, '
+        'so mirror that here rather than the placeholder id="" from Preset.build',
+        () {
+      var i = 0;
+      final meds = kPresets.first.build('2026-08-11').map((m) => m.copyWith(id: 'id-${i++}')).toList();
+      final doses = DoseLogic.getDosesForDate(meds, '2026-08-11');
+
+      final byMed = <String, List<String>>{};
+      for (final d in doses) {
+        byMed.putIfAbsent(d.medicationName, () => []).add(d.scheduledHhmm);
+      }
+      expect(byMed['Antibiotic (e.g. Vigamox)'], ['07:00', '11:00', '15:00', '19:00']);
+      expect(byMed['Steroid (e.g. Pred Forte)'], ['07:05', '11:05', '15:05', '19:05']);
+      expect(byMed['Artificial Tears'], ['09:00', '13:00', '17:00', '21:00']);
     });
   });
 }

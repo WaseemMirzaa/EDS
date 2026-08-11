@@ -99,7 +99,8 @@ class AuthScaffold extends StatelessWidget {
 }
 
 /// Compact circular brand mark (spec §4): 68dp, soft container, thin navy ring,
-/// minimal gold drop.
+/// minimal gold drop. Superseded by [AppLogo] on the auth screens, kept here
+/// in case a compact circular mark is needed elsewhere.
 class AuthBrandMark extends StatelessWidget {
   const AuthBrandMark({super.key});
 
@@ -111,6 +112,21 @@ class AuthBrandMark extends StatelessWidget {
       decoration: const BoxDecoration(color: AuthColors.primaryContainer, shape: BoxShape.circle),
       alignment: Alignment.center,
       child: const DropBadge(size: 46, ringColor: AuthColors.primary, dropColor: AuthColors.gold),
+    );
+  }
+}
+
+/// The real Drop Tracker lockup (navy wordmark + gold drop-check icon),
+/// shipped as a raster asset — used on the auth screens (login / signup /
+/// forgot password) and the splash screen, centred at a legible width.
+class AppLogo extends StatelessWidget {
+  final double width;
+  const AppLogo({super.key, this.width = 176});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Image.asset('assets/images/logo.png', width: width, fit: BoxFit.contain),
     );
   }
 }

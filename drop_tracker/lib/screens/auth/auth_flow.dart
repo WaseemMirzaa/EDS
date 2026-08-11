@@ -89,7 +89,7 @@ class _LoginFormState extends State<_LoginForm> {
     final auth = context.read<AuthController>();
     return AuthScaffold(
       children: [
-        const Align(alignment: Alignment.centerLeft, child: AuthBrandMark()),
+        const AppLogo(),
         const SizedBox(height: 40),
         const AuthHero(title: 'Welcome back', subtitle: 'Log in to keep tracking your eye drops.'),
         const SizedBox(height: 28),
@@ -181,7 +181,7 @@ class _SignupFormState extends State<_SignupForm> {
     final ok = _password.text.length >= 6;
     return AuthScaffold(
       children: [
-        const Align(alignment: Alignment.centerLeft, child: AuthBrandMark()),
+        const AppLogo(),
         const SizedBox(height: 40),
         const AuthHero(title: 'Create account', subtitle: 'Start tracking your eye-drop schedule with confidence.'),
         const SizedBox(height: 28),
@@ -290,6 +290,8 @@ class _ForgotFormState extends State<_ForgotForm> {
         ),
       ),
       children: [
+        const AppLogo(),
+        const SizedBox(height: 40),
         AuthHero(
           title: _sent ? 'Check your email' : 'Reset password',
           subtitle: _sent

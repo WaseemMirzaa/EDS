@@ -130,7 +130,69 @@ class DoseLogic {
       }
     }
     doses.sort((a, b) => a.scheduledHhmm.compareTo(b.scheduledHhmm));
-    return doses;
+    return _autoSpaceCollisions(doses);
+  }
+
+  /// Minutes to leave between two different drops scheduled at the same clock
+  /// time, so they're never instilled in the same instant.
+  static const int collisionSpacingMinutes = 5;
+
+  /// When two or more DIFFERENT medications land on the exact same time,
+  /// automatically stagger them [collisionSpacingMinutes] apart instead of
+  /// leaving them stacked. Artificial tears / lubricants go first (they're
+  /// the "wash out" drop and belong before a medicated drop), other
+  /// medications follow in name order for a stable, predictable schedule.
+  ///
+  /// Multiple dose-times belonging to the SAME medication (e.g. an unusual
+  /// custom schedule) are left untouched — this only resolves collisions
+  /// between distinct medications.
+  static List<Dose> _autoSpaceCollisions(List<Dose> doses) {
+    if (doses.length < 2) return doses;
+
+    // Iterate to a fixed point: spacing a collision can, rarely, push a dose
+    // onto a time another medication already independently occupies. Each
+    // pass only ever moves times later, so this converges quickly; the pass
+    // cap is just a defensive bound, not expected to be hit in practice.
+    var current = doses;
+    for (var pass = 0; pass < 6; pass++) {
+      final byTime = <String, List<Dose>>{};
+      for (final d in current) {
+        byTime.putIfAbsent(d.scheduledHhmm, () => []).add(d);
+      }
+      final hasCollision =
+          byTime.values.any((g) => g.map((d) => d.medicationId).toSet().length > 1);
+      if (!hasCollision) break;
+
+      final result = <Dose>[];
+      for (final group in byTime.values) {
+        final distinctMeds = group.map((d) => d.medicationId).toSet();
+        if (distinctMeds.length < 2) {
+          result.addAll(group);
+          continue;
+        }
+
+        final ordered = [...group]
+          ..sort((a, b) {
+            final aTears = a.category == Category.artificialTears ? 0 : 1;
+            final bTears = b.category == Category.artificialTears ? 0 : 1;
+            if (aTears != bTears) return aTears - bTears;
+            return a.medicationName.compareTo(b.medicationName);
+          });
+
+        final baseMin = _hhmmToMin(ordered.first.scheduledHhmm);
+        for (var i = 0; i < ordered.length; i++) {
+          final hhmm = _minToHhmm(baseMin + i * collisionSpacingMinutes);
+          result.add(ordered[i].copyWith(
+            scheduledHhmm: hhmm,
+            scheduledTime: '${ordered[i].scheduledDate}T$hhmm:00',
+          ));
+        }
+      }
+      current = result;
+    }
+
+    current.sort((a, b) => a.scheduledHhmm.compareTo(b.scheduledHhmm));
+    return current;
   }
 
   // ---- matching / adherence -------------------------------------------------

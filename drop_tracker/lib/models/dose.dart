@@ -25,4 +25,16 @@ class Dose {
     required this.instructions,
     required this.category,
   });
+
+  Dose copyWith({String? scheduledHhmm, String? scheduledTime}) => Dose(
+        medicationId: medicationId,
+        medicationName: medicationName,
+        bottleCapColor: bottleCapColor,
+        eye: eye,
+        scheduledHhmm: scheduledHhmm ?? this.scheduledHhmm,
+        scheduledDate: scheduledDate,
+        scheduledTime: scheduledTime ?? this.scheduledTime,
+        instructions: instructions,
+        category: category,
+      );
 }

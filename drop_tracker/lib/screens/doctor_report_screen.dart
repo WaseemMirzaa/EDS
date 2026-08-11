@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../data/dose_logic.dart';
 import '../data/drop_store.dart';
+import '../models/dose.dart';
 import '../models/dose_event.dart';
 import '../models/enums.dart';
 import '../models/medication.dart';
@@ -19,21 +20,20 @@ class _MedStats {
   int get pct => DoseLogic.calculateAdherence(scheduled, taken);
 }
 
+/// [dosesForDay] must be computed from the FULL medication list (not just
+/// [med]) so any same-time auto-spacing between different medications
+/// (see DoseLogic._autoSpaceCollisions) matches the times that were actually
+/// scheduled and logged, rather than recomputing [med] in isolation.
 _MedStats _statsFor(
   Medication med,
   List<String> last30,
   List<DoseEvent> events,
-  String wStart,
-  String wEnd,
+  List<Dose> Function(String day) dosesForDay,
   String today,
 ) {
   final s = _MedStats();
   for (final day in last30) {
-    if (med.startDate == null || med.startDate!.compareTo(day) > 0) continue;
-    if (!med.ongoing && med.endDate != null && med.endDate!.compareTo(day) < 0) {
-      continue;
-    }
-    final doses = DoseLogic.getDosesForDate([med], day, wakingStart: wStart, wakingEnd: wEnd);
+    final doses = dosesForDay(day).where((d) => d.medicationId == med.id);
     for (final dose in doses) {
       s.scheduled++;
       final ev = DoseLogic.matchDoseToEvent(dose, events);
@@ -67,10 +67,18 @@ class DoctorReportScreen extends StatelessWidget {
     final today = DoseLogic.todayStr();
     final last30 = DoseLogic.getLastNDays(30, today);
 
+    // Compute each day's dose list once, from the FULL medication list, so
+    // any auto-spacing between same-time medications is applied consistently
+    // with what Today/notifications actually scheduled.
+    final dosesByDay = <String, List<Dose>>{
+      for (final day in last30)
+        day: DoseLogic.getDosesForDate(meds, day, wakingStart: user.wakingStart, wakingEnd: user.wakingEnd),
+    };
+
     var overallScheduled = 0, overallTaken = 0;
     final statList = <(Medication, _MedStats)>[];
     for (final m in meds) {
-      final s = _statsFor(m, last30, events, user.wakingStart, user.wakingEnd, today);
+      final s = _statsFor(m, last30, events, (day) => dosesByDay[day]!, today);
       statList.add((m, s));
       overallScheduled += s.scheduled;
       overallTaken += s.taken;

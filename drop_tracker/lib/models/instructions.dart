@@ -34,11 +34,15 @@ class Instructions {
       );
 
   /// Human-readable list of the checked instructions, in display order.
+  ///
+  /// `wait5min` is intentionally excluded here: the app now auto-spaces
+  /// same-time doses 5 minutes apart and surfaces that with its own inline
+  /// "Wait 5 minutes between these drops" banner (see WaitBanner), so
+  /// repeating it as a per-dose chip would be redundant.
   List<String> get summary {
     final parts = <String>[];
     if (shake) parts.add('Shake bottle');
     if (refrigerate) parts.add('Refrigerate');
-    if (wait5min) parts.add('Wait 5 min between drops');
     if (removeContacts) parts.add('Remove contacts');
     if (pressTearDuct) parts.add('Press tear duct');
     return parts;

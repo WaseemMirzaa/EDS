@@ -203,7 +203,7 @@ class _TodayScreenState extends State<TodayScreen> {
             boxShadow: BrandColors.softShadow,
           ),
           alignment: Alignment.center,
-          child: const DropBadge(size: 34),
+          child: const AppIconMark(size: 34),
         ),
       ],
     );

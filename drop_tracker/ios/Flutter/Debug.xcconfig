@@ -1,2 +1,11 @@
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
 #include "Generated.xcconfig"
+
+// Local machine workaround: this Mac's codesign reproducibly rejects
+// freshly-built simulator bundles with "resource fork, Finder information,
+// or similar detritus not allowed", unrelated to the app itself (see
+// flutter_tools patches for the same issue upstream in the build pipeline).
+// The simulator doesn't require a valid signature — skip it for simulator
+// debug builds only; device/archive builds are unaffected.
+CODE_SIGNING_ALLOWED[sdk=iphonesimulator*] = NO
+CODE_SIGNING_REQUIRED[sdk=iphonesimulator*] = NO

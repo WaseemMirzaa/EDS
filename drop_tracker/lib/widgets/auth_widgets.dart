@@ -111,7 +111,7 @@ class AuthBrandMark extends StatelessWidget {
       height: 68,
       decoration: const BoxDecoration(color: AuthColors.primaryContainer, shape: BoxShape.circle),
       alignment: Alignment.center,
-      child: const DropBadge(size: 46, ringColor: AuthColors.primary, dropColor: AuthColors.gold),
+      child: const AppIconMark(size: 46),
     );
   }
 }

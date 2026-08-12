@@ -39,5 +39,15 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+    # Work around a local-machine codesign quirk where freshly-built
+    # simulator framework bundles get flagged as carrying "resource fork /
+    # Finder information" detritus (com.apple.macl re-added on write by this
+    # machine's sandboxing). Simulator builds don't need real code signing —
+    # scope the bypass to the simulator SDK only so device/archive builds are
+    # unaffected.
+    target.build_configurations.each do |config|
+      config.build_settings['CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]'] = 'NO'
+      config.build_settings['CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]'] = 'NO'
+    end
   end
 end

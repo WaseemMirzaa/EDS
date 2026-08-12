@@ -126,11 +126,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   );
                 })),
                 const Spacer(),
-                const DropBadge(
-                  size: 96,
-                  ringColor: Colors.white,
-                  dropColor: BrandColors.sunshine,
-                ),
+                const AppIconMark(size: 108),
                 const SizedBox(height: 24),
                 Text('Drop Tracker',
                     style: AppTypography.display(40, weight: FontWeight.w600, color: Colors.white)),
@@ -309,7 +305,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 borderColor: BrandColors.waves.withValues(alpha: 0.4),
                 child: Row(
                   children: [
-                    const DropBadge(size: 44),
+                    const AppIconMark(size: 44),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(

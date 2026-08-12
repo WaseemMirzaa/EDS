@@ -105,6 +105,28 @@ class DropBadge extends StatelessWidget {
   }
 }
 
+/// The real brand icon (navy ring + gold drop-check, assets/images/app_icon.png)
+/// — the same source used to generate the native app icon — clipped to a
+/// circle. Use this in place of [DropBadge] wherever the app shows its own
+/// icon as a standalone mark (splash, headers, onboarding), rather than the
+/// hand-drawn placeholder.
+class AppIconMark extends StatelessWidget {
+  final double size;
+  const AppIconMark({super.key, this.size = 56});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipOval(
+      child: Image.asset(
+        'assets/images/app_icon.png',
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+      ),
+    );
+  }
+}
+
 /// Full horizontal lockup: badge + "Eye Drop Shop" wordmark in the serif face.
 class DropWordmark extends StatelessWidget {
   final double height;

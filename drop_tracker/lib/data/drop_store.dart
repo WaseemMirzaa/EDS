@@ -12,6 +12,7 @@ import '../models/medication.dart';
 import 'dose_logic.dart';
 import 'notification_service.dart';
 import 'presets.dart';
+import 'trusted_clock.dart';
 
 /// App-wide state + local persistence. Guest mode with on-device storage,
 /// exactly as the prototype (Proposal §3.5) — the seam where a Firebase /
@@ -36,6 +37,9 @@ class DropStore extends ChangeNotifier {
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
+    // Restore the last known device↔server clock offset before anything is
+    // read or written, so timestamps are stamped consistently from first use.
+    await TrustedClock.instance.init(_prefs);
     _load();
     _loaded = true;
     notifyListeners();
@@ -169,6 +173,9 @@ class DropStore extends ChangeNotifier {
       scheduledHhmm: dose.scheduledHhmm,
       response: response,
       responseTime: DateTime.now().toIso8601String(),
+      // Device reading + its difference from server UTC, so this record stays
+      // verifiable even if the phone's clock is wrong or later changed.
+      stamp: TrustedClock.instance.stamp(),
       instructionFlags: dose.instructions.toJson(),
     ));
     await _persistEvents();

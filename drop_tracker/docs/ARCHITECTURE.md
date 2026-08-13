@@ -70,11 +70,50 @@ quietly rewritable after the fact.
 pending and is simply re-notified. That is why the "one response per dose"
 unique index excludes it.
 
-### 2.2 Timezone
+### 2.2 Time, timezone and clock trust
 
-A dose time is a **wall-clock time in the user's zone**, not an instant. 7:00 AM
-stays 7:00 AM after a flight. `profiles.timezone` records the zone so the server
-can resolve `scheduled_at` the same way the device does.
+Three separate concerns, deliberately kept apart.
+
+**A dose time is a wall-clock time, not an instant.** 7:00 AM stays 7:00 AM
+after a flight. `profiles.timezone` records the zone so the server resolves
+`scheduled_at` the same way the device does.
+
+**Every recorded instant is stored as the device reading plus its difference
+from server UTC** — never as a single pre-corrected value.
+
+```
+stored:   device_reported_at   +   clock_offset_ms      (= serverUtc − deviceUtc)
+derived:  trusted_at           =   device_reported_at + offset
+```
+
+The device clock cannot be trusted on its own: it drifts, it can be set by
+hand, and it resets after a flat battery. That matters twice here — a reminder
+scheduled against a wrong clock fires at the wrong real-world moment, and an
+adherence report handed to a prescriber is only meaningful if its timestamps are
+true.
+
+Both halves are kept because they answer different questions. The device
+reading is what the user actually saw on their phone, so it is what History
+shows. The offset is what makes that reading verifiable. Keeping the pair also
+means a record can be re-derived if an offset is later found to be wrong —
+collapsing them into one corrected column throws that away permanently.
+
+`TrustedClock` holds the offset (persisted, measured against `server_now()`,
+discounting half the round trip so network latency does not bias it) and stamps
+every write. `ClockStamp.trustedUtc` is the value to use for anything requiring
+accuracy: dose intervals, the Doctor Report, ordering across devices.
+
+**Reminders are scheduled with the offset applied.** The OS fires against the
+device's own clock, so a phone running 40 minutes fast needs a 7:00 AM dose
+scheduled at 7:40 by its own reckoning in order to fire at 7:00 in reality —
+`intended − offset`. Two guards keep this from doing harm: an offset beyond six
+hours is ignored (far more likely a timezone misreading than real drift, and
+acting on it would move reminders wildly), and a measurement older than seven
+days is reported but not applied, since the device may have been rebooted or
+adjusted since.
+
+Anything above two minutes marks the record `clockWasSuspect`, which the Doctor
+Report can surface so a reviewer knows the caveat.
 
 ### 2.3 Growth
 

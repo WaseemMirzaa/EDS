@@ -1,3 +1,4 @@
+import '../data/trusted_clock.dart';
 import 'enums.dart';
 
 /// A logged response to a scheduled dose (the History record).
@@ -11,7 +12,18 @@ class DoseEvent {
   final String scheduledDate; // yyyy-MM-dd
   final String scheduledHhmm; // HH:mm
   final DoseResponse response;
-  final String responseTime; // ISO 8601
+
+  /// When the user responded, as the device reported it. Local ISO 8601 — this
+  /// is what the History screen shows, because it is the time the user
+  /// themselves saw on their phone.
+  final String responseTime;
+
+  /// The same instant recorded as a device reading plus its difference from
+  /// server UTC. [ClockStamp.trustedUtc] is the value to use anywhere accuracy
+  /// matters — dose intervals, the Doctor Report, ordering across devices —
+  /// since the device clock alone can be wrong or deliberately changed.
+  final ClockStamp stamp;
+
   final Map<String, dynamic> instructionFlags;
 
   const DoseEvent({
@@ -25,8 +37,16 @@ class DoseEvent {
     required this.scheduledHhmm,
     required this.response,
     required this.responseTime,
+    required this.stamp,
     this.instructionFlags = const {},
   });
+
+  /// Corrected instant — prefer this over [responseTime] for any calculation.
+  DateTime get trustedUtc => stamp.trustedUtc;
+
+  /// True when this record was written while the device clock was meaningfully
+  /// out. Surfaced on the Doctor Report so a reviewer knows the caveat.
+  bool get clockWasSuspect => stamp.deviceClockSuspect;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -39,6 +59,7 @@ class DoseEvent {
         'scheduled_hhmm': scheduledHhmm,
         'response': response.code,
         'response_time': responseTime,
+        ...stamp.toJson(),
         'instruction_flags': instructionFlags,
       };
 
@@ -53,6 +74,14 @@ class DoseEvent {
         scheduledHhmm: (j['scheduled_hhmm'] ?? '') as String,
         response: DoseResponse.fromCode(j['response'] as String?),
         responseTime: (j['response_time'] ?? '') as String,
+        // Records written before offsets were tracked carry no device_utc.
+        // Fall back to the response time and mark them device-only rather than
+        // implying a verification that never happened.
+        stamp: j['device_utc'] != null
+            ? ClockStamp.fromJson(j)
+            : ClockStamp.legacy(
+                DateTime.tryParse((j['response_time'] ?? '') as String) ??
+                    DateTime.now()),
         instructionFlags:
             (j['instruction_flags'] as Map?)?.cast<String, dynamic>() ?? const {},
       );

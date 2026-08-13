@@ -8,6 +8,7 @@ import '../models/app_user.dart';
 import '../models/dose.dart';
 import '../models/medication.dart';
 import 'dose_logic.dart';
+import 'trusted_clock.dart';
 
 /// Real, alarm-style local notifications scheduled on the device — the native
 /// replacement for the prototype's .ics workaround (Proposal §04).
@@ -155,6 +156,17 @@ class NotificationService {
     final now = tz.TZDateTime.now(tz.local);
     var scheduled =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
+
+    // The OS fires against the device's own clock, so a device running fast or
+    // slow would fire at the wrong real-world moment. Shift by the measured
+    // device↔server offset: a phone 40 minutes fast needs a 07:00 dose
+    // scheduled at 07:40 by its own reckoning to actually fire at 07:00.
+    // Returns zero when there is no trustworthy measurement to apply.
+    final correction = TrustedClock.instance.schedulingCorrection();
+    if (correction != Duration.zero) {
+      scheduled = scheduled.subtract(correction);
+    }
+
     if (scheduled.isBefore(now)) {
       scheduled = scheduled.add(const Duration(days: 1));
     }

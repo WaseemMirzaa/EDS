@@ -44,6 +44,12 @@ dependencies:
   # Backend: auth, Postgres data sync, storage (Phase 2 scans)
   supabase_flutter: ^2.8.0
 
+  # Native Google / Apple sign-in (falls back to the OAuth browser redirect
+  # when the platform-specific client id isn't configured — see
+  # data/remote/supabase_config.dart)
+  google_sign_in: ^6.2.2
+  sign_in_with_apple: ^6.1.4
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

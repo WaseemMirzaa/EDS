@@ -104,6 +104,10 @@ class SettingsScreen extends StatelessWidget {
                 ],
               ),
             ),
+            if (store.pendingSyncCount > 0) ...[
+              const Gap(10),
+              _SyncPendingBanner(count: store.pendingSyncCount),
+            ],
             const Gap(24),
 
             // Shop
@@ -282,6 +286,40 @@ class SettingsScreen extends StatelessWidget {
             Icon(trailing, size: 20, color: BrandColors.inkFaint),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A small, quiet indicator that some changes are queued for background sync
+/// (see SyncOutbox) — reassurance that nothing was lost while offline, not an
+/// error state. Clears itself the next time DropStore rebuilds after a
+/// successful flush.
+class _SyncPendingBanner extends StatelessWidget {
+  final int count;
+  const _SyncPendingBanner({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: BoxDecoration(
+        color: BrandColors.warningBg,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud_sync_outlined, size: 18, color: BrandColors.warningText),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              count == 1
+                  ? '1 change waiting to sync'
+                  : '$count changes waiting to sync',
+              style: AppTypography.body(13, weight: FontWeight.w600, color: BrandColors.warningText),
+            ),
+          ),
+        ],
       ),
     );
   }

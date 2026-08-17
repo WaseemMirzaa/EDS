@@ -35,6 +35,7 @@ accident; it's all-or-nothing per the `SupabaseConfig.isConfigured` check.
                               --   Phase 1 depends on it being present)
 004_clock_trust.sql          -- device↔server clock reconciliation
 005_profile_bootstrap.sql    -- auto-create a profile row on sign-up
+006_realtime.sql             -- enables live cross-device sync (Part B5)
 ```
 
 Each file is idempotent-safe to inspect before running (no destructive
@@ -94,6 +95,35 @@ Send both to Codetivelab, or drop them straight into `env.json` yourself (see
 Part B) — either is fine, since neither value is a secret that needs
 protecting from your own developer.
 
+### A7. Native Google / Apple sign-in (optional — has a working fallback)
+
+Google and Apple sign-in both work today via a browser-redirect flow with just
+Part A3 + A4 done. This step upgrades each to the real native picker (Face
+ID / Touch ID for Apple, the native account sheet for Google) — skip it
+entirely for launch and add it later with zero app-code changes; the app
+detects what's configured and falls back automatically.
+
+- **Google** — reuse the same **Web client ID** already created in A3 for
+  Supabase's Google provider. Add it to `env.json` as `GOOGLE_WEB_CLIENT_ID`.
+  That's the only step; Google's own recommended pattern for mobile apps
+  issues a verifiable ID token off the Web client with no separate
+  Android/iOS client required.
+- **Apple** — reuse the same **Services ID** already created in A3 for
+  Supabase's Apple provider. Add it to `env.json` as `APPLE_SERVICE_ID`.
+  This only affects Android — iOS gets the real native Face ID / Touch ID
+  sheet automatically (the `Sign in with Apple` capability is already
+  enabled in the Xcode project); there's no Apple credential UI on Android at
+  all, so this id powers a web-based fallback there instead.
+- On iOS, if you're managing signing yourself, confirm **Sign in with Apple**
+  is turned on in **Xcode → Runner target → Signing & Capabilities** — the
+  capability itself is already committed (`ios/Runner/Runner.entitlements`),
+  but it needs the associated App ID capability enabled in your Apple
+  Developer account the first time a real provisioning profile is generated.
+
+`env.example.json` includes both keys with empty placeholder values — leave
+them empty (or omit the flags at build time) to skip native sign-in entirely;
+the app falls back to the browser-redirect OAuth flow automatically.
+
 ---
 
 ## Part B — Point the app at it (Codetivelab / whoever builds it)
@@ -143,20 +173,47 @@ themselves from local-only to the real backend.
 
 ---
 
-## What's intentionally out of scope here
+## Part C — What's also wired up, and how to verify it
 
-- **Realtime multi-device sync** (a change on phone A appearing live on phone
-  B without reopening the app) — the schema supports it (Supabase Realtime
-  can subscribe to any of these tables as-is), but it isn't wired into
-  `DropStore` yet. Fast follow, not a backend change.
-- **An offline write queue** — a mutation made with no network reaches the
-  local cache (so the UI is correct and nothing is lost) but a failed push is
-  currently only retried on the next full sync (app relaunch or sign-in), not
-  automatically retried in the background. Fine for the common case; worth
-  hardening before a large offline-heavy rollout.
-- **Native one-tap Google Sign-In / native Sign in with Apple button** — the
-  current OAuth flow opens the system browser and redirects back, which works
-  correctly but is one extra tap versus a native credential sheet. Upgrading
-  to native needs the `google_sign_in` and `sign_in_with_apple` packages plus
-  their own platform configuration — a UI polish task, not part of the backend
-  swap itself.
+### C1. Live cross-device sync
+
+A change made on one device — add a medication, log a dose, edit waking
+hours — appears on every other signed-in device within about half a second,
+with no app reopen needed. `SupabaseRealtime`
+(`lib/data/remote/supabase_realtime.dart`) subscribes to Postgres changes on
+`medications`, `taper_steps`, `dose_events` and `profiles`, scoped to the
+signed-in user by row-level security (not by a client-side filter — a change
+is only ever delivered to someone whose RLS policies would let them `select`
+that row).
+
+**Requires `006_realtime.sql`** (added the four tables to Supabase's
+replication publication) — without it, subscriptions succeed silently but
+never receive an event.
+
+**Verify:** sign in on two devices/simulators with the same account, add a
+medication on one, watch it appear on the other without touching it.
+
+### C2. Offline write-retry queue
+
+If a background push fails — no connectivity, most commonly — it's queued in
+`SyncOutbox` (`lib/data/remote/sync_outbox.dart`, persisted to disk) instead
+of being dropped. It's retried automatically: every 45 seconds while the app
+is open, and immediately whenever the app returns to the foreground. Settings
+shows a small "N changes waiting to sync" indicator whenever the queue is
+non-empty, so a period offline is visible rather than silent.
+
+**Verify:** turn on Airplane Mode, log a dose, confirm the Settings indicator
+appears; turn Airplane Mode back off and confirm it clears within ~45s (or
+immediately on backgrounding/foregrounding the app).
+
+### C3. Native Google / Apple sign-in
+
+Both providers try the real native credential flow first — the system Google
+account picker, or Face ID / Touch ID for Apple on iOS — and fall back to the
+browser-redirect OAuth flow automatically if the platform-specific id isn't
+configured (see **A7** above for what to add and why nothing needs to change
+in the app itself once you do).
+
+**Verify:** without `GOOGLE_WEB_CLIENT_ID` / `APPLE_SERVICE_ID` set, sign-in
+still works via the browser redirect exactly as before — confirming the
+fallback holds. Set them and the native picker/sheet should appear instead.

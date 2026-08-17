@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 import 'package:uuid/uuid.dart';
@@ -16,7 +17,9 @@ import 'notification_service.dart';
 import 'presets.dart';
 import 'remote/supabase_bootstrap.dart';
 import 'remote/supabase_config.dart';
+import 'remote/supabase_realtime.dart';
 import 'remote/supabase_sync.dart';
+import 'remote/sync_outbox.dart';
 import 'trusted_clock.dart';
 
 /// App-wide state + persistence.
@@ -24,12 +27,17 @@ import 'trusted_clock.dart';
 /// Local-first: every read renders from the on-device SharedPreferences cache,
 /// and every mutation writes there first, so the UI never waits on a network
 /// round trip. Once a Supabase project is configured (see
-/// data/remote/supabase_config.dart) and the user is signed in, the same
-/// mutation is also pushed to Postgres in the background — best-effort, logged
-/// on failure, never blocking — and [init] pulls the account down on launch,
-/// migrating any local-only data up on first sign-in. With no Supabase project
-/// configured, this behaves exactly as the original local/guest-mode design
-/// (Proposal §3.5): nothing here changes until a project exists.
+/// data/remote/supabase_config.dart) and the user is signed in:
+///   * every mutation is also pushed to Postgres in the background — if that
+///     push fails (typically no connectivity), it's queued in [SyncOutbox]
+///     and retried until it confirms, rather than silently dropped;
+///   * [init] pulls the account down on launch and migrates any local-only
+///     data up on first sign-in;
+///   * [SupabaseRealtime] keeps this device live — a change made on another
+///     device (or by another provider integration) is reflected here without
+///     reopening the app.
+/// With no Supabase project configured, none of the above runs: the app
+/// behaves exactly as the original local/guest-mode design (Proposal §3.5).
 class DropStore extends ChangeNotifier {
   static const _medsKey = 'droptracker_medications';
   static const _eventsKey = 'droptracker_dose_events';
@@ -37,6 +45,10 @@ class DropStore extends ChangeNotifier {
 
   final _uuid = const Uuid();
   late SharedPreferences _prefs;
+  late SyncOutbox _outbox;
+  Timer? _retryTimer;
+  StreamSubscription<sb.AuthState>? _authSub;
+  AppLifecycleListener? _lifecycleListener;
 
   AppUser _user = const AppUser();
   List<Medication> _meds = [];
@@ -48,11 +60,17 @@ class DropStore extends ChangeNotifier {
   List<DoseEvent> get events => List.unmodifiable(_events);
   bool get loaded => _loaded;
 
+  /// Number of local mutations still waiting to reach the server. Surfaced so
+  /// Settings can show a small "N changes pending sync" indicator rather than
+  /// this being invisible.
+  int get pendingSyncCount => _outbox.length;
+
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
     // Restore the last known device↔server clock offset before anything is
     // read or written, so timestamps are stamped consistently from first use.
     await TrustedClock.instance.init(_prefs);
+    _outbox = await SyncOutbox.load(_prefs);
     _load();
     _loaded = true;
     notifyListeners();
@@ -70,7 +88,7 @@ class DropStore extends ChangeNotifier {
       // DropStore would only ever see whatever was true at cold start, and a
       // user who signs in from the Auth flow would keep looking at an empty
       // or stale local cache until they force-quit and reopened the app.
-      SupabaseBootstrap.client.auth.onAuthStateChange.listen((state) {
+      _authSub = SupabaseBootstrap.client.auth.onAuthStateChange.listen((state) {
         switch (state.event) {
           case sb.AuthChangeEvent.signedIn:
           case sb.AuthChangeEvent.tokenRefreshed:
@@ -81,7 +99,28 @@ class DropStore extends ChangeNotifier {
             break;
         }
       });
+
+      // Retry the outbox opportunistically: on a timer while the app is open
+      // (catches "connectivity came back" with no other trigger), and every
+      // time the app returns to the foreground (the most likely moment a
+      // previously-offline device has a connection again). No new package
+      // needed for either — this app doesn't otherwise need continuous
+      // connectivity *detection*, only periodic connectivity *attempts*.
+      _retryTimer = Timer.periodic(const Duration(seconds: 45), (_) {
+        unawaited(_outbox.flush());
+      });
+      _lifecycleListener =
+          AppLifecycleListener(onResume: () => unawaited(_outbox.flush()));
     }
+  }
+
+  @override
+  void dispose() {
+    _retryTimer?.cancel();
+    _authSub?.cancel();
+    _lifecycleListener?.dispose();
+    SupabaseRealtime.instance.stop();
+    super.dispose();
   }
 
   /// Drops the local cache back to an empty, unonboarded state on sign-out —
@@ -91,6 +130,7 @@ class DropStore extends ChangeNotifier {
   /// level security scopes every query to the authenticated user), this is
   /// purely about what the UI shows locally in that window.
   Future<void> _clearForSignOut() async {
+    SupabaseRealtime.instance.stop();
     _meds = [];
     _events = [];
     _user = const AppUser();
@@ -104,24 +144,35 @@ class DropStore extends ChangeNotifier {
   ///     migrate the local cache up, so guest data isn't lost on sign-up;
   ///   * a profile row exists → the server is the account's source of truth,
   ///     so pull it down and replace the local cache.
+  /// Either way, starts (or restarts) the realtime subscription and drains
+  /// anything left over in the outbox from a previous session.
   Future<void> _syncAccount() async {
     if (!SupabaseSync.isAvailable) return;
     await SupabaseSync.syncClock();
 
+    final uid = SupabaseBootstrap.client.auth.currentUser!.id;
     final remoteUser = await SupabaseSync.pullProfile();
     if (remoteUser == null) {
       await _migrateLocalToRemote();
-      return;
+    } else {
+      _user = remoteUser;
+      final remoteMeds = await SupabaseSync.pullMedications();
+      final remoteEvents = await SupabaseSync.pullDoseEvents();
+      _meds = remoteMeds;
+      _events = remoteEvents;
+      await Future.wait([_persistUser(), _persistMeds(), _persistEvents()]);
+      notifyListeners();
+      await _syncReminders();
     }
 
-    _user = remoteUser;
-    final remoteMeds = await SupabaseSync.pullMedications();
-    final remoteEvents = await SupabaseSync.pullDoseEvents();
-    _meds = remoteMeds;
-    _events = remoteEvents;
-    await Future.wait([_persistUser(), _persistMeds(), _persistEvents()]);
-    notifyListeners();
-    await _syncReminders();
+    SupabaseRealtime.instance.start(
+      userId: uid,
+      onMedicationsChanged: () => unawaited(_pullMedicationsIntoCache()),
+      onDoseEventsChanged: () => unawaited(_pullDoseEventsIntoCache()),
+      onProfileChanged: () => unawaited(_pullProfileIntoCache()),
+    );
+
+    unawaited(_outbox.flush());
   }
 
   /// First sync for a new account: whatever is already in the local cache
@@ -135,6 +186,35 @@ class DropStore extends ChangeNotifier {
     for (final event in _events) {
       await SupabaseSync.pushDoseEvent(event);
     }
+  }
+
+  // ---- realtime pull handlers -------------------------------------------
+  // Each re-pulls its whole slice and replaces local state. See
+  // SupabaseRealtime's doc comment for why a full re-pull, not a per-row
+  // patch, is the right amount of complexity here.
+
+  Future<void> _pullMedicationsIntoCache() async {
+    final remote = await SupabaseSync.pullMedications();
+    _meds = remote;
+    await _persistMeds();
+    notifyListeners();
+    await _syncReminders();
+  }
+
+  Future<void> _pullDoseEventsIntoCache() async {
+    final remote = await SupabaseSync.pullDoseEvents();
+    _events = remote;
+    await _persistEvents();
+    notifyListeners();
+  }
+
+  Future<void> _pullProfileIntoCache() async {
+    final remote = await SupabaseSync.pullProfile();
+    if (remote == null) return;
+    _user = remote;
+    await _persistUser();
+    notifyListeners();
+    await _syncReminders();
   }
 
   void _load() {
@@ -176,6 +256,57 @@ class DropStore extends ChangeNotifier {
     }
   }
 
+  // ---- background push helpers ----------------------------------------
+  // Try immediately; if that fails (almost always: no connectivity), queue
+  // for retry rather than losing the write. Never awaited by a mutation
+  // method — the local save has already happened and the UI has already
+  // updated by the time these run.
+
+  Future<void> _pushProfileWithRetry() async {
+    if (!SupabaseSync.isAvailable) return;
+    try {
+      final row = await SupabaseSync.buildProfileRow(_user);
+      await SupabaseSync.pushProfileRaw(row);
+    } catch (e) {
+      debugPrint('profile push failed, queued for retry: $e');
+      final row = await SupabaseSync.buildProfileRow(_user);
+      await _outbox.enqueueProfile(row);
+    }
+  }
+
+  Future<void> _pushMedicationWithRetry(Medication med) async {
+    if (!SupabaseSync.isAvailable) return;
+    final row = SupabaseSync.medicationRow(med);
+    final taperRows = SupabaseSync.taperStepRows(med);
+    try {
+      await SupabaseSync.pushMedicationRaw(row, taperRows);
+    } catch (e) {
+      debugPrint('medication push failed, queued for retry: $e');
+      await _outbox.enqueueMedication(row, taperRows);
+    }
+  }
+
+  Future<void> _deleteMedicationWithRetry(String id) async {
+    if (!SupabaseSync.isAvailable) return;
+    try {
+      await SupabaseSync.deleteMedicationRaw(id);
+    } catch (e) {
+      debugPrint('medication delete failed, queued for retry: $e');
+      await _outbox.enqueueMedicationDelete(id);
+    }
+  }
+
+  Future<void> _pushDoseEventWithRetry(DoseEvent event) async {
+    if (!SupabaseSync.isAvailable) return;
+    final row = SupabaseSync.doseEventRow(event);
+    try {
+      await SupabaseSync.pushDoseEventRaw(row);
+    } catch (e) {
+      debugPrint('dose event push failed, queued for retry: $e');
+      await _outbox.enqueueDoseEvent(row);
+    }
+  }
+
   // ---- user -----------------------------------------------------------------
 
   Future<void> updateUser({
@@ -196,7 +327,7 @@ class DropStore extends ChangeNotifier {
     notifyListeners();
     // Waking-hour changes recompute auto-spaced times → reschedule.
     await _syncReminders();
-    unawaited(SupabaseSync.pushProfile(_user));
+    unawaited(_pushProfileWithRetry());
   }
 
   // ---- medications ----------------------------------------------------------
@@ -207,7 +338,7 @@ class DropStore extends ChangeNotifier {
     await _persistMeds();
     notifyListeners();
     await _syncReminders();
-    unawaited(SupabaseSync.pushMedication(med));
+    unawaited(_pushMedicationWithRetry(med));
     return med;
   }
 
@@ -219,7 +350,7 @@ class DropStore extends ChangeNotifier {
     await _persistMeds();
     notifyListeners();
     await _syncReminders();
-    unawaited(SupabaseSync.pushMedication(med));
+    unawaited(_pushMedicationWithRetry(med));
   }
 
   Future<void> deleteMedication(String id) async {
@@ -227,7 +358,7 @@ class DropStore extends ChangeNotifier {
     await _persistMeds();
     notifyListeners();
     await _syncReminders();
-    unawaited(SupabaseSync.deleteMedication(id));
+    unawaited(_deleteMedicationWithRetry(id));
   }
 
   Future<void> applyPreset(Preset preset) async {
@@ -242,7 +373,7 @@ class DropStore extends ChangeNotifier {
     notifyListeners();
     await _syncReminders();
     for (final med in added) {
-      unawaited(SupabaseSync.pushMedication(med));
+      unawaited(_pushMedicationWithRetry(med));
     }
   }
 
@@ -282,7 +413,7 @@ class DropStore extends ChangeNotifier {
     _events.add(event);
     await _persistEvents();
     notifyListeners();
-    unawaited(SupabaseSync.pushDoseEvent(event));
+    unawaited(_pushDoseEventWithRetry(event));
   }
 
   // ---- account --------------------------------------------------------------

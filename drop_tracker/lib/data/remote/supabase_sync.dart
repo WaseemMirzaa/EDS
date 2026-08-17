@@ -20,11 +20,17 @@ import 'supabase_config.dart';
 /// nest `taper_steps` inline locally; the server normalises them into their own
 /// table, for example).
 ///
-/// Every call here is best-effort — [DropStore] writes to the local cache
-/// first and always renders from it, so a failed or slow push never blocks the
-/// UI. Failures are logged, not surfaced, which is the right default for a
-/// background sync; the local cache is retried on next mutation and on the
-/// next app launch's [pullAccount].
+/// Every write method here comes in two forms:
+///   * a `...Row()` builder that turns a local model into the exact map the
+///     table expects, and a `...Raw()` pusher that sends a pre-built row and
+///     **throws** on failure — this is what [SyncOutbox] replays, since a
+///     queued entry should never need to re-derive anything (like the
+///     device's timezone) at retry time;
+///   * a convenience wrapper (`pushProfile`, `pushMedication`, ...) that
+///     builds the row and pushes it, for callers that don't need outbox
+///     backing. [DropStore] doesn't use these directly for user-initiated
+///     mutations — see [DropStore.] `_pushWithRetry` — but they're the
+///     simplest path for anything that just wants a best-effort push.
 class SupabaseSync {
   SupabaseSync._();
 
@@ -36,20 +42,37 @@ class SupabaseSync {
 
   // ---------------------------------------------------------------- profile
 
-  static Future<void> pushProfile(AppUser user) async {
+  /// Builds the full `profiles` row, including the device's current IANA
+  /// timezone — resolved once, here, so a queued retry replays the exact same
+  /// row rather than re-reading the timezone (which could theoretically
+  /// differ) at an unknown later time.
+  static Future<Map<String, dynamic>> buildProfileRow(AppUser user) async {
     final uid = _uid;
-    if (uid == null) return;
+    if (uid == null) {
+      throw StateError('buildProfileRow called with no signed-in user');
+    }
+    final tz = await FlutterTimezone.getLocalTimezone();
+    return {
+      'id': uid,
+      'first_name': user.firstName,
+      'waking_start': user.wakingStart,
+      'waking_end': user.wakingEnd,
+      'onboarded': user.onboarded,
+      'has_seen_disclaimer': user.hasSeenDisclaimer,
+      'timezone': tz,
+    };
+  }
+
+  /// Upserts a pre-built profile row. Throws on failure — the caller (
+  /// [DropStore]) decides whether to queue a retry.
+  static Future<void> pushProfileRaw(Map<String, dynamic> row) =>
+      SupabaseBootstrap.client.from('profiles').upsert(row);
+
+  /// Best-effort convenience: builds the row and pushes it, logging rather
+  /// than throwing on failure.
+  static Future<void> pushProfile(AppUser user) async {
     try {
-      final tz = await FlutterTimezone.getLocalTimezone();
-      await SupabaseBootstrap.client.from('profiles').upsert({
-        'id': uid,
-        'first_name': user.firstName,
-        'waking_start': user.wakingStart,
-        'waking_end': user.wakingEnd,
-        'onboarded': user.onboarded,
-        'has_seen_disclaimer': user.hasSeenDisclaimer,
-        'timezone': tz,
-      });
+      await pushProfileRaw(await buildProfileRow(user));
     } catch (e) {
       debugPrint('SupabaseSync.pushProfile failed: $e');
     }
@@ -90,66 +113,76 @@ class SupabaseSync {
 
   // ------------------------------------------------------------ medications
 
-  static Map<String, dynamic> _medicationRow(Medication m, String uid) => {
-        'id': m.id,
-        'user_id': uid,
-        'name': m.name,
-        'bottle_cap_color': m.bottleCapColor,
-        'eye': m.eye.code,
-        'frequency_type': m.frequencyType.code,
-        'frequency_value': m.frequencyValue,
-        'dose_times': m.doseTimes,
-        'start_date': m.startDate,
-        'end_date': m.endDate,
-        'ongoing': m.ongoing,
-        'category': m.category.code,
-        'instructions': m.instructions.toJson(),
-        'notes': m.instructions.notes,
-      };
+  static Map<String, dynamic> medicationRow(Medication m, {String? uid}) {
+    final owner = uid ?? _uid;
+    if (owner == null) {
+      throw StateError('medicationRow called with no signed-in user');
+    }
+    return {
+      'id': m.id,
+      'user_id': owner,
+      'name': m.name,
+      'bottle_cap_color': m.bottleCapColor,
+      'eye': m.eye.code,
+      'frequency_type': m.frequencyType.code,
+      'frequency_value': m.frequencyValue,
+      'dose_times': m.doseTimes,
+      'start_date': m.startDate,
+      'end_date': m.endDate,
+      'ongoing': m.ongoing,
+      'category': m.category.code,
+      'instructions': m.instructions.toJson(),
+      'notes': m.instructions.notes,
+    };
+  }
 
-  static Map<String, dynamic> _taperStepRow(
-    TaperStep s,
-    String medicationId,
-    int index,
-  ) =>
-      {
-        'medication_id': medicationId,
-        'step_index': index,
-        'start_date': s.startDate,
-        'frequency_type': s.frequencyType.code,
-        'frequency_value': s.frequencyValue,
-        'dose_times': s.doseTimes,
-      };
+  static List<Map<String, dynamic>> taperStepRows(Medication m) => [
+        for (var i = 0; i < m.taperSteps.length; i++)
+          {
+            'medication_id': m.id,
+            'step_index': i,
+            'start_date': m.taperSteps[i].startDate,
+            'frequency_type': m.taperSteps[i].frequencyType.code,
+            'frequency_value': m.taperSteps[i].frequencyValue,
+            'dose_times': m.taperSteps[i].doseTimes,
+          },
+      ];
 
-  /// Upserts a medication and replaces its full taper-step list.
+  /// Upserts a medication row and replaces its full taper-step list. Throws
+  /// on failure.
   ///
   /// Taper steps are always edited as a whole ordered list in the UI (there is
   /// no "edit step 2 in isolation" affordance), so delete-then-reinsert is both
-  /// simpler and safer than trying to diff steps — there is no scenario where
-  /// a partial update is actually correct here.
+  /// simpler and safer than trying to diff steps.
+  static Future<void> pushMedicationRaw(
+    Map<String, dynamic> row,
+    List<Map<String, dynamic>> taperRows,
+  ) async {
+    final client = SupabaseBootstrap.client;
+    final id = row['id'] as String;
+    await client.from('medications').upsert(row);
+    await client.from('taper_steps').delete().eq('medication_id', id);
+    if (taperRows.isNotEmpty) {
+      await client.from('taper_steps').insert(taperRows);
+    }
+  }
+
   static Future<void> pushMedication(Medication m) async {
-    final uid = _uid;
-    if (uid == null) return;
     try {
-      final client = SupabaseBootstrap.client;
-      await client.from('medications').upsert(_medicationRow(m, uid));
-      await client.from('taper_steps').delete().eq('medication_id', m.id);
-      if (m.taperSteps.isNotEmpty) {
-        await client.from('taper_steps').insert([
-          for (var i = 0; i < m.taperSteps.length; i++)
-            _taperStepRow(m.taperSteps[i], m.id, i),
-        ]);
-      }
+      await pushMedicationRaw(medicationRow(m), taperStepRows(m));
     } catch (e) {
       debugPrint('SupabaseSync.pushMedication failed: $e');
     }
   }
 
-  static Future<void> deleteMedication(String id) async {
-    if (_uid == null) return;
-    try {
+  /// Throws on failure.
+  static Future<void> deleteMedicationRaw(String id) =>
       // taper_steps cascades via the FK in db/migrations/001.
-      await SupabaseBootstrap.client.from('medications').delete().eq('id', id);
+      SupabaseBootstrap.client.from('medications').delete().eq('id', id);
+
+  static Future<void> deleteMedication(String id) async {
+    try {
+      await deleteMedicationRaw(id);
     } catch (e) {
       debugPrint('SupabaseSync.deleteMedication failed: $e');
     }
@@ -166,11 +199,14 @@ class SupabaseSync {
           .eq('user_id', uid)
           .isFilter('deleted_at', null)
           .order('created_at');
-      final stepRows = await client
-          .from('taper_steps')
-          .select()
-          .inFilter('medication_id', rows.map((r) => r['id'] as String).toList())
-          .order('step_index');
+      final medIds = rows.map((r) => r['id'] as String).toList();
+      final stepRows = medIds.isEmpty
+          ? <Map<String, dynamic>>[]
+          : await client
+              .from('taper_steps')
+              .select()
+              .inFilter('medication_id', medIds)
+              .order('step_index');
 
       final stepsByMed = <String, List<TaperStep>>{};
       for (final r in stepRows) {
@@ -214,7 +250,11 @@ class SupabaseSync {
 
   // ------------------------------------------------------------ dose events
 
-  static Map<String, dynamic> _doseEventRow(DoseEvent e, String uid) {
+  static Map<String, dynamic> doseEventRow(DoseEvent e, {String? uid}) {
+    final owner = uid ?? _uid;
+    if (owner == null) {
+      throw StateError('doseEventRow called with no signed-in user');
+    }
     // scheduled_hhmm/scheduled_date are wall-clock by design (a 7:00 AM dose
     // means 7:00 AM local, every day, independent of timezone). Resolving them
     // against the device's current local timezone to produce an instant is a
@@ -229,7 +269,7 @@ class SupabaseSync {
 
     return {
       'id': e.id,
-      'user_id': uid,
+      'user_id': owner,
       'medication_id': e.medicationId,
       'medication_name': e.medicationName,
       'bottle_cap_color': e.bottleCapColor,
@@ -252,14 +292,13 @@ class SupabaseSync {
   /// select only, no update policy). [DropStore.logResponse] replaces the
   /// local record for a re-logged dose, so a push here must upsert on the
   /// primary key rather than always insert, or a correction would create a
-  /// duplicate history row instead of replacing it.
+  /// duplicate history row instead of replacing it. Throws on failure.
+  static Future<void> pushDoseEventRaw(Map<String, dynamic> row) =>
+      SupabaseBootstrap.client.from('dose_events').upsert(row);
+
   static Future<void> pushDoseEvent(DoseEvent e) async {
-    final uid = _uid;
-    if (uid == null) return;
     try {
-      await SupabaseBootstrap.client
-          .from('dose_events')
-          .upsert(_doseEventRow(e, uid));
+      await pushDoseEventRaw(doseEventRow(e));
     } catch (err) {
       debugPrint('SupabaseSync.pushDoseEvent failed: $err');
     }

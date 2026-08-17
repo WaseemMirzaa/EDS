@@ -31,6 +31,17 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <!-- Supabase OAuth (Google / Apple) browser redirect back into the
+                 app. Must match SupabaseConfig.oauthRedirect and the Redirect
+                 URL allow-listed in Supabase → Authentication → URL
+                 Configuration. -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="com.eyedropshop.droptracker" android:host="login-callback"/>
+            </intent-filter>
         </activity>
 
         <!-- flutter_local_notifications: scheduled + reboot receivers -->

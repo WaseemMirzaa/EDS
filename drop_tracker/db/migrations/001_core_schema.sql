@@ -67,7 +67,11 @@ create table medications (
 
   frequency_type    frequency_type  not null default 'four_daily',
   frequency_value   smallint,                       -- interval hours, every_n_hours only
-  dose_times        time[]          not null default '{}',
+  -- 'HH:mm' strings, not `time[]`: this is exactly the wire format the Flutter
+  -- client already uses end to end (DoseLogic, dose_times on the wire, the
+  -- time picker), so a JSON array from the app maps onto this column with no
+  -- cast ambiguity in either direction.
+  dose_times        text[]          not null default '{}',
 
   start_date        date,
   end_date          date,
@@ -109,7 +113,7 @@ create table taper_steps (
   start_date      date           not null,
   frequency_type  frequency_type not null,
   frequency_value smallint,
-  dose_times      time[]         not null default '{}',
+  dose_times      text[]         not null default '{}',  -- see medications.dose_times
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),
 

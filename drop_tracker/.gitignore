@@ -1,6 +1,10 @@
 # fvm — ignore the linked SDK, keep .fvmrc
 .fvm/
 
+# Supabase credentials — copy env.example.json to env.json and fill it in;
+# env.json itself must never be committed.
+env.json
+
 # Miscellaneous
 *.class
 *.log

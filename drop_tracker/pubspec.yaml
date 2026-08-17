@@ -41,6 +41,9 @@ dependencies:
   # Privacy / terms / battery guidance / account deletion links
   url_launcher: ^6.3.1
 
+  # Backend: auth, Postgres data sync, storage (Phase 2 scans)
+  supabase_flutter: ^2.8.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

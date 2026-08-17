@@ -45,5 +45,19 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Supabase OAuth (Google / Apple) browser redirect back into the app.
+	     Must match SupabaseConfig.oauthRedirect and the Redirect URL
+	     allow-listed in Supabase → Authentication → URL Configuration. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.eyedropshop.droptracker.auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.eyedropshop.droptracker</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

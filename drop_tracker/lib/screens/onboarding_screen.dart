@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../data/drop_store.dart';
-import '../data/notification_service.dart';
 import '../data/presets.dart';
 import '../theme/app_theme.dart';
 import '../theme/brand.dart';
@@ -48,9 +47,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (preset != null) {
       await store.applyPreset(preset);
     }
-    // Ask for reminder permission right as the app becomes useful.
-    await NotificationService.instance.requestPermissions();
-    // The root gate will now render the main shell automatically.
+    // Permissions were already required at the launch gate.
   }
 
   @override
@@ -80,7 +77,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       padding: const EdgeInsets.only(top: 20, bottom: 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: List.generate(3, (i) {
+        children: List.generate(2, (i) {
           final active = i == _step;
           final done = i < _step;
           return AnimatedContainer(
@@ -113,7 +110,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 16),
-                Row(children: List.generate(3, (i) {
+                Row(children: List.generate(2, (i) {
                   final active = i == 0;
                   return Container(
                     margin: const EdgeInsets.only(right: 8),
@@ -255,13 +252,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: PrimaryButton(
-                label: 'Continue',
+                label: 'Get Started',
                 icon: Icons.arrow_forward_rounded,
-                onPressed: () => setState(() => _step = 2),
+                onPressed: _applying ? null : () => _finish(null),
               ),
             ),
           ],
         ),
+        if (_applying)
+          const Padding(
+            padding: EdgeInsets.only(top: 16),
+            child: Center(child: CircularProgressIndicator(color: BrandColors.ocean)),
+          ),
       ],
     );
   }

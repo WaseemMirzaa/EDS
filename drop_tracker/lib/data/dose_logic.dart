@@ -35,9 +35,17 @@ class DoseLogic {
     return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
   }
 
+  /// Rounds to the nearest 15-minute mark, for display-friendly dose times.
+  static int _roundTo15(int mins) => (mins / 15).round() * 15;
+
   // ---- time generation ------------------------------------------------------
 
-  /// Evenly-spaced times across waking hours for fixed frequencies.
+  /// Evenly-spaced times across the user's waking window (wake → bed), per
+  /// the "waking-window" scheduling mode: first dose at wake, last dose at
+  /// bedtime, the rest spaced evenly between and rounded to the nearest 15
+  /// min. This intentionally does NOT split the day into strict N-hour
+  /// intervals — e.g. BID lands at wake and bed, not 12 h apart — so nobody
+  /// is woken at 3 a.m. for a dose.
   static List<String> suggestTimes(FrequencyType freq,
       {String wakingStart = '07:00', String wakingEnd = '21:00'}) {
     final count = freq.count;
@@ -46,8 +54,15 @@ class DoseLogic {
     final endMin = _hhmmToMin(wakingEnd);
     final span = endMin - startMin;
     if (count == 1) return [wakingStart];
-    final interval = (span / (count - 1)).round();
-    return [for (var i = 0; i < count; i++) _minToHhmm(startMin + interval * i)];
+    final interval = span / (count - 1);
+    return [
+      for (var i = 0; i < count; i++)
+        i == 0
+            ? wakingStart
+            : i == count - 1
+                ? wakingEnd
+                : _minToHhmm(_roundTo15(startMin + (interval * i).round())),
+    ];
   }
 
   /// Rolling times every N hours across waking hours.
@@ -59,7 +74,7 @@ class DoseLogic {
     final times = <String>[];
     if (interval <= 0) return [wakingStart];
     for (var mins = startMin; mins <= endMin; mins += interval) {
-      times.add(_minToHhmm(mins));
+      times.add(_minToHhmm(mins == startMin ? mins : _roundTo15(mins)));
     }
     return times;
   }

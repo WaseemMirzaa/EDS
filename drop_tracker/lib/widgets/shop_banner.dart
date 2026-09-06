@@ -9,19 +9,19 @@ import 'motion.dart';
 
 /// Premium, conversion-focused store banner (Home hero). Deep-ocean surface,
 /// gold brand accent, trust signals and a single strong CTA that opens
-/// eyedropshop.ca in the external browser.
+/// Eye Drop Shop in the external browser.
 class ShopBanner extends StatelessWidget {
-  final String title;
-  final String subtitle;
   final String cta;
   final String campaign;
   const ShopBanner({
     super.key,
-    this.title = 'Doctor-formulated eye care',
-    this.subtitle = 'Dry-eye drops & essentials, shipped across Canada.',
     this.cta = 'Shop Eye Drop Shop',
     this.campaign = 'home_banner',
   });
+
+  // Locked copy — do not pass overrides from call sites.
+  static const _title = 'Doctor-curated eye care';
+  static const _subtitle = 'Dry-eye drops & essentials, delivered to your door.';
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +52,9 @@ class ShopBanner extends StatelessWidget {
               Positioned(
                 right: -26,
                 bottom: -34,
-                child: Opacity(opacity: 0.08, child: DropMark(size: 170, color: Colors.white, filled: true)),
+                child: Opacity(
+                    opacity: 0.08,
+                    child: DropMark(size: 170, color: Colors.white, filled: true)),
               ),
               Padding(
                 padding: const EdgeInsets.all(20),
@@ -64,32 +66,47 @@ class ShopBanner extends StatelessWidget {
                         Container(
                           width: 30,
                           height: 30,
-                          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), shape: BoxShape.circle),
+                          decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.12),
+                              shape: BoxShape.circle),
                           alignment: Alignment.center,
-                          child: DropMark(size: 16, color: BrandColors.gold, filled: true),
+                          child: DropMark(
+                              size: 16, color: BrandColors.gold, filled: true),
                         ),
                         const SizedBox(width: 9),
                         Text('EYE DROP SHOP',
-                            style: AppTypography.body(11.5, weight: FontWeight.w700, color: BrandColors.gold, letterSpacing: 1.4)),
+                            style: AppTypography.body(11.5,
+                                weight: FontWeight.w700,
+                                color: BrandColors.gold,
+                                letterSpacing: 1.4)),
                         const Spacer(),
-                        Text(Shop.domain,
-                            style: AppTypography.body(12, weight: FontWeight.w500, color: Colors.white54)),
+                        // Always show .com on the card; tap still routes
+                        // CA → eyedropshop.ca / US+rest → eyedropshop.com.
+                        Text('eyedropshop.com',
+                            style: AppTypography.body(12,
+                                weight: FontWeight.w500, color: Colors.white54)),
                       ],
                     ),
                     const SizedBox(height: 16),
-                    Text(title,
-                        style: AppTypography.display(23, weight: FontWeight.w700, color: Colors.white, height: 1.1)),
+                    Text(_title,
+                        style: AppTypography.display(23,
+                            weight: FontWeight.w700,
+                            color: Colors.white,
+                            height: 1.1)),
                     const SizedBox(height: 6),
-                    Text(subtitle,
-                        style: AppTypography.body(14, weight: FontWeight.w500, color: Colors.white70, height: 1.4)),
+                    Text(_subtitle,
+                        style: AppTypography.body(14,
+                            weight: FontWeight.w500,
+                            color: Colors.white70,
+                            height: 1.4)),
                     const SizedBox(height: 14),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: const [
-                        _Trust('By eye doctors'),
-                        _Trust('No prescription'),
-                        _Trust('Canadian'),
+                        _Trust('by eye doctors'),
+                        _Trust('No prescription needed'),
+                        _Trust('Ships in Canada & US'),
                       ],
                     ),
                     const SizedBox(height: 18),
@@ -97,13 +114,19 @@ class ShopBanner extends StatelessWidget {
                       height: 48,
                       width: double.infinity,
                       alignment: Alignment.center,
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
+                      decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(15)),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(cta, style: AppTypography.body(15.5, weight: FontWeight.w700, color: BrandColors.primary)),
+                          Text(cta,
+                              style: AppTypography.body(15.5,
+                                  weight: FontWeight.w700,
+                                  color: BrandColors.primary)),
                           const SizedBox(width: 7),
-                          const Icon(Icons.arrow_outward_rounded, size: 18, color: BrandColors.primary),
+                          const Icon(Icons.arrow_outward_rounded,
+                              size: 18, color: BrandColors.primary),
                         ],
                       ),
                     ),
@@ -125,13 +148,18 @@ class _Trust extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.13), borderRadius: BorderRadius.circular(999)),
+      decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.13),
+          borderRadius: BorderRadius.circular(999)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.check_circle_rounded, size: 13, color: BrandColors.gold),
+          const Icon(Icons.check_circle_rounded,
+              size: 13, color: BrandColors.gold),
           const SizedBox(width: 5),
-          Text(text, style: AppTypography.body(12, weight: FontWeight.w600, color: Colors.white)),
+          Text(text,
+              style: AppTypography.body(12,
+                  weight: FontWeight.w600, color: Colors.white)),
         ],
       ),
     );
@@ -140,11 +168,11 @@ class _Trust extends StatelessWidget {
 
 /// Slim one-line shop link for secondary screens (History, reports).
 class ShopLinkStrip extends StatelessWidget {
-  final String label;
+  final String? label;
   final String campaign;
   const ShopLinkStrip({
     super.key,
-    this.label = 'Shop dry-eye care at eyedropshop.ca',
+    this.label,
     this.campaign = 'link_strip',
   });
 
@@ -169,19 +197,24 @@ class ShopLinkStrip extends StatelessWidget {
             Container(
               width: 30,
               height: 30,
-              decoration: BoxDecoration(color: BrandColors.surface, borderRadius: BorderRadius.circular(9)),
+              decoration: BoxDecoration(
+                  color: BrandColors.surface,
+                  borderRadius: BorderRadius.circular(9)),
               alignment: Alignment.center,
-              child: DropMark(size: 16, color: BrandColors.gold, filled: true),
+              child:
+                  DropMark(size: 16, color: BrandColors.gold, filled: true),
             ),
             const SizedBox(width: 11),
             Expanded(
-              child: Text(label,
+              child: Text(label ?? 'Shop dry-eye care at eyedropshop.com',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTypography.body(13.5, weight: FontWeight.w600, color: BrandColors.ink)),
+                  style: AppTypography.body(13.5,
+                      weight: FontWeight.w600, color: BrandColors.ink)),
             ),
             const SizedBox(width: 8),
-            const Icon(Icons.arrow_outward_rounded, size: 17, color: BrandColors.primary),
+            const Icon(Icons.arrow_outward_rounded,
+                size: 17, color: BrandColors.primary),
           ],
         ),
       ),
@@ -196,8 +229,8 @@ class ShopRestockCard extends StatelessWidget {
   final String campaign;
   const ShopRestockCard({
     super.key,
-    this.title = 'Running low on drops?',
-    this.subtitle = 'Restock from Eye Drop Shop — no prescription needed.',
+    this.title = 'Shop eye care essentials',
+    this.subtitle = 'Over-the-counter dry-eye care at eyedropshop.ca',
     this.campaign = 'restock_card',
   });
 
@@ -221,19 +254,27 @@ class ShopRestockCard extends StatelessWidget {
             Container(
               width: 46,
               height: 46,
-              decoration: BoxDecoration(color: BrandColors.surface, borderRadius: BorderRadius.circular(13)),
+              decoration: BoxDecoration(
+                  color: BrandColors.surface,
+                  borderRadius: BorderRadius.circular(13)),
               alignment: Alignment.center,
-              child: DropMark(size: 24, color: BrandColors.gold, filled: true),
+              child:
+                  DropMark(size: 24, color: BrandColors.gold, filled: true),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: AppTypography.body(15, weight: FontWeight.w700, color: BrandColors.ink)),
+                  Text(title,
+                      style: AppTypography.body(15,
+                          weight: FontWeight.w700, color: BrandColors.ink)),
                   const SizedBox(height: 2),
                   Text(subtitle,
-                      style: AppTypography.body(12.5, weight: FontWeight.w500, color: BrandColors.inkSoft, height: 1.3)),
+                      style: AppTypography.body(12.5,
+                          weight: FontWeight.w500,
+                          color: BrandColors.inkSoft,
+                          height: 1.3)),
                 ],
               ),
             ),
@@ -241,8 +282,10 @@ class ShopRestockCard extends StatelessWidget {
             Container(
               width: 34,
               height: 34,
-              decoration: const BoxDecoration(color: BrandColors.primary, shape: BoxShape.circle),
-              child: const Icon(Icons.arrow_outward_rounded, size: 18, color: Colors.white),
+              decoration: const BoxDecoration(
+                  color: BrandColors.primary, shape: BoxShape.circle),
+              child: const Icon(Icons.arrow_outward_rounded,
+                  size: 18, color: Colors.white),
             ),
           ],
         ),

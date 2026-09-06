@@ -6,5 +6,15 @@
 	<array>
 		<string>Default</string>
 	</array>
+	<!-- Lets scheduled dose reminders break through Focus / Quiet Hours. -->
+	<key>com.apple.developer.usernotifications.time-sensitive</key>
+	<true/>
+	<!-- aps-environment (push notifications entitlement) deliberately
+	     omitted: firebase_messaging/FCM push is currently disabled (see
+	     main.dart's commented-out Firebase init). Declaring this key
+	     without the matching "Push Notifications" capability enabled in
+	     Xcode + the Apple Developer portal + provisioning profile causes a
+	     code-signing failure at build/archive time, so it's left out until
+	     FCM is actually re-enabled — add it back alongside that change. -->
 </dict>
 </plist>

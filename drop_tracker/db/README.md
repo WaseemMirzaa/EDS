@@ -36,6 +36,10 @@ accident; it's all-or-nothing per the `SupabaseConfig.isConfigured` check.
 004_clock_trust.sql          -- device↔server clock reconciliation
 005_profile_bootstrap.sql    -- auto-create a profile row on sign-up
 006_realtime.sql             -- enables live cross-device sync (Part B5)
+007_push_scheduling.sql      -- server-side push scheduling for FCM (Part D)
+                              --   run this one too even if you're not doing
+                              --   Part D yet — it's additive and inert until
+                              --   the cron job at the bottom is configured
 ```
 
 Each file is idempotent-safe to inspect before running (no destructive
@@ -217,3 +221,106 @@ in the app itself once you do).
 **Verify:** without `GOOGLE_WEB_CLIENT_ID` / `APPLE_SERVICE_ID` set, sign-in
 still works via the browser redirect exactly as before — confirming the
 fallback holds. Set them and the native picker/sheet should appear instead.
+
+---
+
+## Part D — Server-driven push notifications (FCM) — optional
+
+**Skip this entirely and the app is unaffected** — local scheduling (Part A
+onward) is the reminder mechanism whether or not any of this is done; see
+`lib/data/remote/fcm_service.dart`'s doc comment for what this layer adds on
+top (cross-device snooze sync, and a fallback alert only when a device's own
+local scheduling has demonstrably failed) and why it's additive, not a
+replacement.
+
+A Firebase project (`drop-tracker-eds`) and the Flutter-side wiring
+(`firebase_options.dart`, `google-services.json`,
+`ios/Runner/GoogleService-Info.plist`) are already set up. What's left needs
+credentials/actions in the Firebase and Apple consoles this assistant can't
+reach on its own.
+
+### D1. Run the migration
+
+**Dashboard → SQL Editor**, run `007_push_scheduling.sql` (adds
+`scheduled_reminders`, its RLS policy, and turns on the `pg_cron`/`pg_net`
+extensions — inert on its own, nothing fires yet).
+
+### D2. Get an FCM service account key
+
+1. [Firebase Console](https://console.firebase.google.com/project/drop-tracker-eds/settings/serviceaccounts/adminsdk)
+   → **Project Settings → Service Accounts → Generate new private key**.
+   Downloads a JSON file — treat it like a password, it grants full
+   messaging access to the project.
+2. **Dashboard → Edge Functions** (after D3) **→ send-due-reminders →
+   Secrets**, add:
+   - `FCM_SERVICE_ACCOUNT_JSON` — paste the entire downloaded JSON file as
+     one value.
+   - `FCM_PROJECT_ID` — `drop-tracker-eds`.
+
+### D3. Deploy the Edge Function
+
+From a machine with the Supabase CLI logged in (`supabase login`):
+
+```bash
+supabase link --project-ref <your-project-ref>
+supabase functions deploy send-due-reminders
+```
+
+(`supabase/functions/send-due-reminders/index.ts` is already written —
+nothing to edit before deploying.)
+
+### D4. Turn on the cron schedule
+
+**Dashboard → SQL Editor**, run this once — with your own project ref and
+the `service_role` key from **Project Settings → API** filled in (never the
+`anon` key here; this one's allowed to leave the dashboard exactly once,
+into this statement):
+
+```sql
+select cron.schedule(
+  'send-due-reminders-every-minute',
+  '* * * * *',
+  $$
+  select net.http_post(
+    url := 'https://YOUR_PROJECT_REF.supabase.co/functions/v1/send-due-reminders',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer YOUR_SERVICE_ROLE_KEY'
+    ),
+    body := '{}'::jsonb
+  );
+  $$
+);
+```
+
+### D5. iOS — upload an APNs key (the one step with no CLI equivalent)
+
+FCM delivers iOS push through Apple's own APNs, which needs its own
+authentication independent of everything above:
+
+1. [Apple Developer → Certificates, Identifiers & Profiles → Keys](https://developer.apple.com/account/resources/authkeys/list)
+   → **+** → check **Apple Push Notifications service (APNs)** → Continue →
+   Register. Download the `.p8` file **immediately** — Apple only lets you
+   download it once.
+2. [Firebase Console → Project Settings → Cloud Messaging](https://console.firebase.google.com/project/drop-tracker-eds/settings/cloudmessaging)
+   → **Apple app configuration → APNs Authentication Key → Upload**. Upload
+   the `.p8`, along with the **Key ID** (shown on the Apple page after
+   registering) and your **Team ID** (Apple Developer → Membership).
+
+Without this step, Android push works but iOS push silently never arrives —
+local scheduling is unaffected either way.
+
+### D6. Verifying it worked
+
+1. Sign in on a real device (FCM tokens aren't reliably issued in
+   simulators/emulators) → **Table Editor → devices** — a row with a
+   `push_token` should appear.
+2. Add a medication with a dose time a couple of minutes out → **Table
+   Editor → scheduled_reminders** — a row appears with a matching `fire_at`.
+3. Wait for `fire_at` to pass — within a minute, `sent_at` should populate
+   and (if local scheduling on that device is healthy) nothing extra
+   visibly happens, by design; force a local-scheduling failure to see the
+   fallback alert (e.g. deny notification permission after the row is
+   created) to confirm that path separately.
+4. **Dashboard → Edge Functions → send-due-reminders → Logs** — confirms the
+   cron job is actually firing and what it did each run.

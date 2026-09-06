@@ -1,10 +1,41 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Reminders: notifications + exact alarms that survive reboot -->
+    <!-- Reminders: notifications + exact alarms that survive reboot.
+         POST_NOTIFICATIONS and VIBRATE are also declared by
+         flutter_local_notifications' own bundled manifest (see its
+         android/src/main/AndroidManifest.xml) and would be merged in either
+         way — kept explicit here anyway since they're the two permissions
+         most central to what this app does. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+
+    <!-- Exact-alarm scheduling: flutter_local_notifications' own README
+         (see its "Requesting exact alarm permission" section) documents
+         SCHEDULE_EXACT_ALARM and USE_EXACT_ALARM as *alternatives*, not
+         both together —
+           * SCHEDULE_EXACT_ALARM: special-access permission the user grants
+             through system Settings (ExactAlarmScreen owns this flow via
+             permission_handler's Permission.scheduleExactAlarm). Safe for
+             any app to declare.
+           * USE_EXACT_ALARM: auto-granted with no user prompt, but per
+             Android's own docs (developer.android.com/reference/android/
+             Manifest.permission#USE_EXACT_ALARM) is intended for
+             alarm-clock/calendar-category apps specifically and "could be
+             subject to approval and auditing by the app store(s)" —
+             Drop Tracker is a medication reminder app, not that category,
+             so this was removed rather than risk Play Store rejection.
+             Declaring both was also actively confusing during testing: it
+             made canScheduleExactAlarms() return true via USE_EXACT_ALARM's
+             auto-grant regardless of the real SCHEDULE_EXACT_ALARM state,
+             masking whether the mandatory gate below was actually working.
+         Do not re-add USE_EXACT_ALARM without confirming Play Store category
+         eligibility first. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+
+    <!-- Android only: native "unrestricted battery" system dialog — a
+         documented, Play-Store-accepted exemption category for apps whose
+         core function is scheduled, time-critical reminders. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
 
     <application
         android:label="Drop Tracker"
@@ -16,6 +47,7 @@
             android:launchMode="singleTop"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
+            android:screenOrientation="portrait"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
@@ -77,5 +109,17 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
         </intent>
+        <!-- DeviceReliabilityService: package visibility (Android 11+) for
+             the OEM autostart/battery-manager apps it deep-links to. Without
+             these, AndroidIntent.launch() fails to resolve the target even
+             when the app is actually installed. -->
+        <package android:name="com.miui.securitycenter" />
+        <package android:name="com.miui.powerkeeper" />
+        <package android:name="com.coloros.safecenter" />
+        <package android:name="com.oppo.safe" />
+        <package android:name="com.iqoo.secure" />
+        <package android:name="com.vivo.permissionmanager" />
+        <package android:name="com.huawei.systemmanager" />
+        <package android:name="com.asus.mobilemanager" />
     </queries>
 </manifest>

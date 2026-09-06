@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../data/dose_logic.dart';
+import '../data/sound_service.dart';
 import '../models/dose.dart';
 import '../models/enums.dart';
 import '../theme/app_theme.dart';
@@ -8,13 +11,22 @@ import '../theme/brand.dart';
 
 /// The Confidence Check modal. Returns the chosen [DoseResponse], or null on
 /// Cancel.
-Future<DoseResponse?> showConfidenceCheck(BuildContext context, Dose dose) {
-  return showModalBottomSheet<DoseResponse>(
-    context: context,
-    backgroundColor: Colors.transparent,
-    isScrollControlled: true,
-    builder: (ctx) => _ConfidenceSheet(dose: dose),
-  );
+Future<DoseResponse?> showConfidenceCheck(BuildContext context, Dose dose) async {
+  // Start the alarm as the sheet is opening, not awaited — it should
+  // announce the popup, not delay it from appearing. It keeps ringing
+  // (looped) until the sheet is dismissed, same as a real alarm clock, so
+  // it's still noticeable if the phone was put down when it started.
+  unawaited(SoundService.instance.playAlarm());
+  try {
+    return await showModalBottomSheet<DoseResponse>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => _ConfidenceSheet(dose: dose),
+    );
+  } finally {
+    unawaited(SoundService.instance.stopAlarm());
+  }
 }
 
 class _Option {

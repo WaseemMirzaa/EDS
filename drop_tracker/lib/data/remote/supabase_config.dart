@@ -1,12 +1,26 @@
-/// Supabase connection settings, supplied at build time — never hardcoded and
-/// never committed. Read from `--dart-define`:
+/// Supabase connection settings.
+///
+/// Default to this project's real Supabase instance (below), so a plain
+/// `flutter run` / `flutter build ios` / `flutter build appbundle` — with no
+/// extra flags, on either platform — talks to the real backend out of the
+/// box. That was the original design intent (see [isConfigured]'s doc), but
+/// requiring every invocation to remember `--dart-define-from-file=env.json`
+/// meant a platform built without it (as iOS was) silently fell back to
+/// local-only guest mode while the other platform, built with the flag,
+/// looked "real" — same code, different flag, confusingly different
+/// behavior. Baking in the default removes that footgun.
+///
+/// Override at build time when needed — e.g. pointing at a staging project,
+/// or a contributor's own Supabase instance:
 ///
 ///   flutter run \
 ///     --dart-define=SUPABASE_URL=https://xxxx.supabase.co \
 ///     --dart-define=SUPABASE_ANON_KEY=eyJ...
 ///
-/// or from a `--dart-define-from-file=env.json` (see `env.example.json` at the
-/// project root; keep the real `env.json` out of version control).
+/// or `--dart-define-from-file=env.json` (see `env.example.json` at the
+/// project root; keep the real `env.json` out of version control — it's
+/// still useful for e.g. GOOGLE_WEB_CLIENT_ID/APPLE_SERVICE_ID below, which
+/// have no default).
 ///
 /// The project URL and anon/public key are safe to ship inside the compiled
 /// app — they are what every Supabase client app embeds. Every table is
@@ -14,15 +28,23 @@
 /// anon key alone cannot read or write another user's data. The service-role
 /// key is never used from the app and must never appear here.
 ///
-/// While these are unset, [isConfigured] is false and the app runs exactly as
-/// it does today — local-only, device storage, no network calls — so nothing
-/// regresses before a Supabase project exists. Once set, [AuthController] and
-/// [DropStore] switch themselves over automatically; no other code changes.
+/// [isConfigured] is only false if a build explicitly overrides both values
+/// to empty strings — in that case the app runs local-only, device storage,
+/// no network calls, exactly as it did before a Supabase project existed.
+/// [AuthController] and [DropStore] switch between the two automatically; no
+/// other code changes.
 class SupabaseConfig {
   SupabaseConfig._();
 
-  static const String url = String.fromEnvironment('SUPABASE_URL');
-  static const String anonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+  static const String url = String.fromEnvironment(
+    'SUPABASE_URL',
+    defaultValue: 'https://bsekhzbfvgzacabgzkfw.supabase.co',
+  );
+  static const String anonKey = String.fromEnvironment(
+    'SUPABASE_ANON_KEY',
+    defaultValue:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzZWtoemJmdmd6YWNhYmd6a2Z3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc0ODE0NjEsImV4cCI6MjEwMzA1NzQ2MX0.F_kAe8hAkfQCxi3Yqb0Twwf6gsrBM_RZIVPBt6H6-eI',
+  );
 
   static bool get isConfigured => url.isNotEmpty && anonKey.isNotEmpty;
 

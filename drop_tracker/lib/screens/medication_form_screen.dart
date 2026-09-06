@@ -143,10 +143,25 @@ class _MedicationFormScreenState extends State<MedicationFormScreen> {
 
   void _addTaperStep() {
     setState(() {
+      // A new step starts as an exact continuation of whatever the "Dose
+      // times" section above already has — not an unrelated hardcoded
+      // default — so adding a step (which starts effective immediately if
+      // its date is today) never silently overrides the schedule the user
+      // just set with a different, disconnected time. The user then tapers
+      // *down* from here by editing this step and adding later ones.
+      final startDate = _taper.isEmpty
+          ? _startDate
+          : DoseLogic.dateToStr(
+              DoseLogic.strToDate(_taper.last.startDate).add(const Duration(days: 7)));
+      final baseFreq = _taper.isEmpty ? _freq : _taper.last.frequencyType;
+      final baseTimes = _taper.isEmpty ? _times : _taper.last.doseTimes;
       _taper.add(TaperStep(
-        startDate: _startDate,
-        frequencyType: FrequencyType.twiceDaily,
-        doseTimes: DoseLogic.suggestTimes(FrequencyType.twiceDaily, wakingStart: _wStart, wakingEnd: _wEnd),
+        startDate: startDate,
+        frequencyType: baseFreq,
+        frequencyValue: _taper.isEmpty
+            ? (_freq == FrequencyType.everyNHours ? int.tryParse(_everyN.text) : null)
+            : _taper.last.frequencyValue,
+        doseTimes: List.of(baseTimes),
       ));
     });
   }
@@ -269,6 +284,29 @@ class _MedicationFormScreenState extends State<MedicationFormScreen> {
                   _addChip('Add step', _addTaperStep),
                 ],
               ),
+              if (_taper.isNotEmpty) ...[
+                const Gap(12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: BrandColors.cloud,
+                    borderRadius: BorderRadius.circular(AppRadius.chip),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.info_outline_rounded, size: 17, color: BrandColors.secondary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Once a step\'s date arrives, its own times replace the "Dose times" above — they don\'t combine. Step 1 starting today means it\'s already active.',
+                          style: AppTypography.body(12.5, color: BrandColors.secondary, height: 1.4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               ..._taper.asMap().entries.map((e) => _taperCard(e.key)),
             ]),
             const Gap(26),

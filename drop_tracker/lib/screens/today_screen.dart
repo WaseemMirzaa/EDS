@@ -49,6 +49,12 @@ class _TodayScreenState extends State<TodayScreen> {
     super.dispose();
   }
 
+  /// A dose more than this long overdue is treated as missed rather than
+  /// "just became due" — popping the Confidence Check that late is more
+  /// disruptive than useful, so it's left for the user to log manually via
+  /// "Did I take my drop?" instead of auto-prompting.
+  static const int _missedThresholdMinutes = 60;
+
   /// When a scheduled dose becomes due and hasn't been logged, gently open the
   /// Confidence Check (once per dose per session) — mirrors the prototype.
   void _checkDue() {
@@ -70,10 +76,25 @@ class _TodayScreenState extends State<TodayScreen> {
       if (_prompted.contains(key)) continue;
       if (dose.scheduledHhmm.compareTo(nowHhmm) <= 0) {
         _prompted.add(key);
-        _openConfidenceCheck(dose);
-        break;
+        final overdueMinutes = _minutesOverdue(dose.scheduledHhmm, nowHhmm);
+        if (overdueMinutes < _missedThresholdMinutes) {
+          _openConfidenceCheck(dose);
+          break;
+        }
+        // Missed by an hour or more — skip the popup for this dose, but
+        // keep checking the rest of today's doses in case a later one is
+        // freshly due.
       }
     }
+  }
+
+  /// Minutes elapsed between [scheduledHhmm] and [nowHhmm], both "HH:mm" on
+  /// the same day. Assumes [nowHhmm] is at or after [scheduledHhmm] (only
+  /// called once `_checkDue` has already confirmed the dose is due).
+  int _minutesOverdue(String scheduledHhmm, String nowHhmm) {
+    final s = scheduledHhmm.split(':').map(int.parse).toList();
+    final n = nowHhmm.split(':').map(int.parse).toList();
+    return (n[0] * 60 + n[1]) - (s[0] * 60 + s[1]);
   }
 
   Future<void> _openConfidenceCheck(Dose dose) async {
@@ -92,6 +113,27 @@ class _TodayScreenState extends State<TodayScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Snoozed — we\'ll remind you in 10 minutes.')),
         );
+      }
+    }
+  }
+
+  /// Exports every medication's reminders as one combined .ics and opens the
+  /// share sheet, surfacing any failure instead of leaving the tap looking
+  /// like it did nothing (see SettingsScreen._exportIcs for the same guard).
+  Future<void> _exportIcs(DropStore store) async {
+    try {
+      final box = context.findRenderObject() as RenderBox?;
+      final origin =
+          box != null ? box.localToGlobal(Offset.zero) & box.size : null;
+      await IcsGenerator.share(
+        'drop-tracker-reminders.ics',
+        IcsGenerator.forAll(store.medications, store.user),
+        sharePositionOrigin: origin,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not export reminders: $e')));
       }
     }
   }
@@ -165,10 +207,7 @@ class _TodayScreenState extends State<TodayScreen> {
               SecondaryButton(
                 label: 'Add all reminders to Calendar',
                 icon: Icons.event_available_rounded,
-                onPressed: () => IcsGenerator.share(
-                  'drop-tracker-reminders.ics',
-                  IcsGenerator.forAll(store.medications, store.user),
-                ),
+                onPressed: () => _exportIcs(store),
               ),
             ],
             const Gap(20),

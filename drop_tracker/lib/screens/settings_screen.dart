@@ -1,11 +1,16 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../data/auth_controller.dart';
+import '../data/device_reliability_service.dart';
 import '../data/drop_store.dart';
 import '../data/ics_generator.dart';
 import '../data/notification_service.dart';
+import '../data/shop.dart';
+import '../data/trusted_clock.dart';
 import '../theme/app_theme.dart';
 import '../theme/brand.dart';
 import '../widgets/common.dart';
@@ -13,13 +18,14 @@ import '../widgets/disclaimer_banner.dart';
 import '../widgets/drop_logo.dart';
 import '../widgets/motion.dart';
 import '../widgets/shop_banner.dart';
+import 'background_reliability_screen.dart';
 import 'battery_optimization_screen.dart';
 import 'profile_screen.dart';
 
 // Placeholder brand URLs — swap for the live legal pages before store submission.
-const _privacyUrl = 'https://eyedropshop.ca/privacy';
-const _termsUrl = 'https://eyedropshop.ca/terms';
-const _accountDeletionUrl = 'https://eyedropshop.ca/account-deletion';
+const _privacyUrl = 'https://eyedropshop.com/privacy';
+const _termsUrl = 'https://eyedropshop.com/terms';
+const _accountDeletionUrl = 'https://eyedropshop.com/account-deletion';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -29,6 +35,35 @@ class SettingsScreen extends StatelessWidget {
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not open $url')));
+      }
+    }
+  }
+
+  /// Exports every medication's reminders as one combined .ics and opens the
+  /// share sheet. Guards the two ways this silently "did nothing" before:
+  /// no medications to export, and any failure (file write, or the iPad
+  /// share-sheet popover crash when no anchor rect is given) going
+  /// unreported.
+  Future<void> _exportIcs(BuildContext context, DropStore store) async {
+    if (store.medications.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Add a medication first, then export reminders.')));
+      return;
+    }
+    try {
+      final box = context.findRenderObject() as RenderBox?;
+      final origin = box != null
+          ? box.localToGlobal(Offset.zero) & box.size
+          : null;
+      await IcsGenerator.share(
+        'drop-tracker-reminders.ics',
+        IcsGenerator.forAll(store.medications, store.user),
+        sharePositionOrigin: origin,
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not export reminders: $e')));
       }
     }
   }
@@ -112,9 +147,9 @@ class SettingsScreen extends StatelessWidget {
 
             // Shop
             const SectionLabel('Eye Drop Shop'),
-            const ShopRestockCard(
-              title: 'Shop doctor-formulated drops',
-              subtitle: 'Dry-eye care & essentials at eyedropshop.ca.',
+            ShopRestockCard(
+              title: 'Shop eye care essentials',
+              subtitle: 'Over-the-counter dry-eye care at ${Shop.displayDomain}',
               campaign: 'settings_shop',
             ),
             const Gap(24),
@@ -131,35 +166,50 @@ class SettingsScreen extends StatelessWidget {
                     subtitle: 'Allow Drop Tracker to remind you on time.',
                     onTap: () async {
                       final granted = await NotificationService.instance.requestPermissions();
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(granted
-                                ? 'Notifications enabled.'
-                                : 'Notifications are turned off in system settings.')));
-                      }
+                      if (!context.mounted) return;
+                      await context.read<AuthController>().refreshPermissionStatus();
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text(granted
+                              ? 'Notifications enabled.'
+                              : 'Notifications are turned off in system settings.')));
                     },
                   ),
-                  const Divider(height: 1),
-                  _tile(
-                    icon: Icons.battery_charging_full_rounded,
-                    title: 'Keep reminders reliable',
-                    subtitle: 'Battery-optimisation guidance for your device.',
-                    onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const BatteryOptimizationScreen())),
-                  ),
+                  // Battery unrestricted is Android-only (not applicable on iOS).
+                  if (Platform.isAndroid) ...[
+                    const Divider(height: 1),
+                    _tile(
+                      icon: Icons.battery_charging_full_rounded,
+                      title: 'Keep reminders reliable',
+                      subtitle: 'Battery-optimisation guidance for your device.',
+                      onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const BatteryOptimizationScreen())),
+                    ),
+                  ],
+                  if (DeviceReliabilityService.instance
+                      .needsManualBackgroundSetup) ...[
+                    const Divider(height: 1),
+                    _tile(
+                      icon: Icons.shield_moon_rounded,
+                      title:
+                          '${DeviceReliabilityService.instance.oemLabel} background setup',
+                      subtitle: 'Autostart, battery saver & lock — revisit the steps.',
+                      onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const BackgroundReliabilityScreen())),
+                    ),
+                  ],
                   const Divider(height: 1),
                   _tile(
                     icon: Icons.event_available_rounded,
                     title: 'Add all reminders to Calendar',
                     subtitle: 'Export a combined .ics file.',
-                    onTap: () => IcsGenerator.share(
-                      'drop-tracker-reminders.ics',
-                      IcsGenerator.forAll(store.medications, store.user),
-                    ),
+                    onTap: () => _exportIcs(context, store),
                   ),
                 ],
               ),
             ),
+            const _ReminderDiagnosticsBanner(),
             const Gap(24),
 
             // Safety
@@ -284,6 +334,108 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
             Icon(trailing, size: 20, color: BrandColors.inkFaint),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Quiet, only-when-noteworthy diagnostics for the reminder schedule:
+/// * the rolling notification window is about to run dry (app hasn't been
+///   opened in a while, so nothing has re-topped it up — see
+///   [NotificationService.rescheduleAll]),
+/// * the device clock looks meaningfully wrong (reminder times may be off),
+/// * Android denied exact alarms, so timing may drift by a few minutes.
+/// Shows nothing at all when everything is healthy.
+class _ReminderDiagnosticsBanner extends StatefulWidget {
+  const _ReminderDiagnosticsBanner();
+
+  @override
+  State<_ReminderDiagnosticsBanner> createState() =>
+      _ReminderDiagnosticsBannerState();
+}
+
+class _ReminderDiagnosticsBannerState
+    extends State<_ReminderDiagnosticsBanner> {
+  DateTime? _scheduledThrough;
+  bool _inexactFallback = false;
+  String? _lastError;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final through = await NotificationService.instance.scheduledThroughDate();
+    final fallback = await NotificationService.instance.usedInexactAlarmFallback();
+    final error = await NotificationService.instance.lastScheduleError();
+    if (!mounted) return;
+    setState(() {
+      _scheduledThrough = through;
+      _inexactFallback = fallback;
+      _lastError = error;
+      _loaded = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const SizedBox.shrink();
+
+    final staleReminders = _scheduledThrough == null ||
+        _scheduledThrough!.isBefore(DateTime.now().add(const Duration(days: 2)));
+    final clockSuspect = TrustedClock.instance.isSynced &&
+        !TrustedClock.instance.isStale &&
+        TrustedClock.instance.deviceClockSuspect;
+
+    final notices = <String>[
+      if (_lastError != null)
+        'Reminders failed to schedule last time — reopen the app to retry. ($_lastError)',
+      if (staleReminders && _lastError == null)
+        'Reminders are only scheduled a little way ahead — open Drop Tracker every so often to keep them current.',
+      if (clockSuspect)
+        "Your device clock looks off — reminder times may be shifted until it's corrected.",
+      if (_inexactFallback && Platform.isAndroid)
+        'Exact alarms are off for this app, so reminder timing may drift by a few minutes. Allow exact alarms in system settings for precise timing.',
+    ];
+    if (notices.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          color: BrandColors.warningBg,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final n in notices)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 1),
+                      child: Icon(Icons.info_outline_rounded,
+                          size: 16, color: BrandColors.warningText),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(n,
+                          style: AppTypography.body(12.5,
+                              weight: FontWeight.w600,
+                              color: BrandColors.warningText)),
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
       ),

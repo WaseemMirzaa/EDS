@@ -2,23 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../data/auth_controller.dart';
-import '../data/notification_service.dart';
 import '../data/permission_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/brand.dart';
 import '../widgets/common.dart';
 import '../widgets/drop_logo.dart';
 
-/// Mandatory notification gate. Must grant via the native OS dialog (or
-/// system Settings) before the rest of the app is reachable.
-class PermissionScreen extends StatefulWidget {
-  const PermissionScreen({super.key});
+/// Android-only (API 31+) mandatory gate: "Alarms & reminders" access.
+///
+/// This is a *separate* permission from notifications and from battery
+/// optimisation — Android only grants it via a dedicated system Settings
+/// screen, never a runtime dialog, and without it every scheduled reminder
+/// silently falls back to an inexact alarm the OS is free to delay by
+/// minutes or more. Confirmed on a real MIUI device: a dose reminder sat
+/// overdue in AlarmManager's queue well past its due time because this was
+/// never granted, even though notification permission and battery
+/// unrestricted were both already in place.
+class ExactAlarmScreen extends StatefulWidget {
+  const ExactAlarmScreen({super.key});
 
   @override
-  State<PermissionScreen> createState() => _PermissionScreenState();
+  State<ExactAlarmScreen> createState() => _ExactAlarmScreenState();
 }
 
-class _PermissionScreenState extends State<PermissionScreen>
+class _ExactAlarmScreenState extends State<ExactAlarmScreen>
     with WidgetsBindingObserver {
   bool _busy = false;
   bool _denied = false;
@@ -45,23 +52,19 @@ class _PermissionScreenState extends State<PermissionScreen>
   }
 
   Future<void> _recheck({bool autoAdvance = false}) async {
-    final ok = await context.read<AuthController>().markPermissionsDone();
-    if (!mounted) return;
-    if (!ok && autoAdvance) {
-      setState(() => _denied = _denied);
-    }
+    await context.read<AuthController>().markExactAlarmsDone();
   }
 
-  Future<void> _enable() async {
+  Future<void> _allow() async {
     setState(() => _busy = true);
-    final granted = await NotificationService.instance.requestPermissions();
+    // This opens system Settings rather than a dialog, so its own return
+    // value is stale by the time the user comes back — the real check
+    // happens in didChangeAppLifecycleState/_recheck on resume.
+    await PermissionService.instance.requestExactAlarms();
     if (!mounted) return;
-    final ok = await context.read<AuthController>().markPermissionsDone();
+    final ok = await context.read<AuthController>().markExactAlarmsDone();
     if (!mounted) return;
-    if (granted && ok) {
-      // Root gate advances automatically via permissionsDone.
-      return;
-    }
+    if (ok) return;
     setState(() {
       _busy = false;
       _denied = true;
@@ -84,15 +87,15 @@ class _PermissionScreenState extends State<PermissionScreen>
                 decoration: const BoxDecoration(
                     color: BrandColors.cloud, shape: BoxShape.circle),
                 alignment: Alignment.center,
-                child: const Icon(Icons.notifications_active_rounded,
+                child: const Icon(Icons.alarm_on_rounded,
                     size: 40, color: BrandColors.primary),
               ),
               const Gap(28),
-              Text('Turn on reminders',
-                  style: AppTypography.display(32, weight: FontWeight.w700)),
+              Text('Allow precise reminder timing',
+                  style: AppTypography.display(30, weight: FontWeight.w700)),
               const Gap(12),
               Text(
-                'Drop Tracker reminds you the moment each dose is due. Allow notifications so a reminder can reach you even when the app is closed.',
+                'Android treats exact-time alarms as a separate permission from notifications. Without it, your dose reminders can arrive minutes late — or be delayed indefinitely by your phone\'s battery manager.',
                 style: AppTypography.body(16,
                     weight: FontWeight.w500,
                     color: BrandColors.inkSoft,
@@ -101,19 +104,17 @@ class _PermissionScreenState extends State<PermissionScreen>
               const Gap(24),
               AppCard(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
                 child: Column(
                   children: [
-                    _featureRow(Icons.schedule_rounded, 'On-time alerts',
-                        'A reminder for every scheduled dose.'),
-                    const _RowDivider(),
-                    _featureRow(
-                        Icons.bedtime_off_rounded,
-                        'Works in the background',
-                        'Nothing missed while the app is closed.'),
-                    const _RowDivider(),
-                    _featureRow(Icons.lock_outline_rounded, 'Private by design',
-                        'Everything stays on your device.'),
+                    for (var i = 0; i < _steps.length; i++) ...[
+                      if (i > 0)
+                        Divider(
+                            height: 1,
+                            thickness: 1,
+                            color: BrandColors.border.withValues(alpha: 0.7)),
+                      _step(i + 1, _steps[i]),
+                    ],
                   ],
                 ),
               ),
@@ -132,7 +133,7 @@ class _PermissionScreenState extends State<PermissionScreen>
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                            'Notifications are required. Enable them in Settings, then return to Drop Tracker.',
+                            'Still off. Open Settings ▸ Alarms & reminders and allow Drop Tracker, then return here.',
                             style: AppTypography.body(13.5,
                                 weight: FontWeight.w500,
                                 color: BrandColors.warningText,
@@ -145,20 +146,21 @@ class _PermissionScreenState extends State<PermissionScreen>
                 PrimaryButton(
                   label: 'Open Settings',
                   icon: Icons.settings_rounded,
-                  onPressed: () =>
-                      PermissionService.instance.openSystemSettings(),
+                  onPressed: _allow,
                 ),
                 const Gap(10),
                 PrimaryButton(
-                  label: 'Try again',
+                  label: 'I\'ve allowed it',
                   loading: _busy,
-                  onPressed: _enable,
+                  onPressed: () => _recheck(autoAdvance: true),
                 ),
               ] else
                 PrimaryButton(
-                    label: 'Enable notifications',
-                    loading: _busy,
-                    onPressed: _enable),
+                  label: 'Allow exact alarms',
+                  icon: Icons.alarm_on_rounded,
+                  loading: _busy,
+                  onPressed: _allow,
+                ),
               const Gap(8),
               Center(
                 child: Opacity(
@@ -176,47 +178,40 @@ class _PermissionScreenState extends State<PermissionScreen>
     );
   }
 
-  Widget _featureRow(IconData icon, String title, String subtitle) {
+  static const _steps = [
+    'Tap “Allow exact alarms” below',
+    'On the system screen, turn on “Allow setting alarms and reminders” for Drop Tracker',
+    'Come back — Drop Tracker picks it up automatically',
+  ];
+
+  Widget _step(int n, String text) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 14),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 30,
+            height: 30,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-                color: BrandColors.primary.withValues(alpha: 0.09),
-                borderRadius: BorderRadius.circular(12)),
-            child: Icon(icon, size: 21, color: BrandColors.primary),
+                color: BrandColors.primary.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(9)),
+            child: Text('$n',
+                style: AppTypography.body(14,
+                    weight: FontWeight.w700, color: BrandColors.primary)),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: AppTypography.body(15.5,
-                        weight: FontWeight.w700, color: BrandColors.ink)),
-                const SizedBox(height: 2),
-                Text(subtitle,
-                    style: AppTypography.body(13,
-                        weight: FontWeight.w500,
-                        color: BrandColors.inkSoft,
-                        height: 1.3)),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text(text,
+                  style: AppTypography.body(14.5,
+                      weight: FontWeight.w500, height: 1.4)),
             ),
           ),
         ],
       ),
     );
   }
-}
-
-class _RowDivider extends StatelessWidget {
-  const _RowDivider();
-  @override
-  Widget build(BuildContext context) => Divider(
-      height: 1,
-      thickness: 1,
-      color: BrandColors.border.withValues(alpha: 0.7));
 }

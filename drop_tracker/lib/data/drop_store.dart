@@ -12,9 +12,12 @@ import '../models/dose.dart';
 import '../models/dose_event.dart';
 import '../models/enums.dart';
 import '../models/medication.dart';
+import 'background_scheduler.dart';
 import 'dose_logic.dart';
 import 'notification_service.dart';
 import 'presets.dart';
+// FCM push is disabled — see main.dart's commented-out Firebase init.
+// import 'remote/fcm_service.dart';
 import 'remote/supabase_bootstrap.dart';
 import 'remote/supabase_config.dart';
 import 'remote/supabase_realtime.dart';
@@ -64,6 +67,30 @@ class DropStore extends ChangeNotifier {
   /// Settings can show a small "N changes pending sync" indicator rather than
   /// this being invisible.
   int get pendingSyncCount => _outbox.length;
+
+  /// Reads just enough of the persisted cache to rebuild notifications,
+  /// without needing a live [DropStore] instance — for use from the
+  /// background isolate a periodic task runs in (see
+  /// data/background_scheduler.dart), which has no [ChangeNotifier] tree or
+  /// Provider context to attach to.
+  static Future<(List<Medication>, AppUser)> loadPersistedForBackground() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userRaw = prefs.getString(_userKey);
+    final user = userRaw != null
+        ? AppUser.fromJson(jsonDecode(userRaw) as Map<String, dynamic>)
+        : const AppUser();
+    final medsRaw = prefs.getString(_medsKey);
+    List<Medication> meds = [];
+    if (medsRaw != null) {
+      try {
+        meds = (jsonDecode(medsRaw) as List)
+            .cast<Map<String, dynamic>>()
+            .map((e) => Medication.fromJson(e))
+            .toList();
+      } catch (_) {}
+    }
+    return (meds, user);
+  }
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
@@ -137,6 +164,7 @@ class DropStore extends ChangeNotifier {
     await Future.wait([_persistUser(), _persistMeds(), _persistEvents()]);
     notifyListeners();
     await NotificationService.instance.cancelAll();
+    unawaited(BackgroundScheduler.cancel());
   }
 
   /// Reconciles the local cache against the account once signed in:
@@ -149,6 +177,17 @@ class DropStore extends ChangeNotifier {
   Future<void> _syncAccount() async {
     if (!SupabaseSync.isAvailable) return;
     await SupabaseSync.syncClock();
+
+    // Drain anything still queued from a previous session — most
+    // importantly, onboarding completion (or any other profile/medication
+    // write) that failed to push and was queued instead — BEFORE pulling.
+    // Pulling first would read the server's still-stale state (e.g.
+    // `onboarded: false`, since 005_profile_bootstrap.sql's trigger creates
+    // the profile row at signup with nothing but a name) and overwrite the
+    // correct local value with it, undoing a completed onboarding on the
+    // very next sign-in. Awaited, not fire-and-forget, so the pull below is
+    // guaranteed to see whatever this flush just landed.
+    await _outbox.flush();
 
     final uid = SupabaseBootstrap.client.auth.currentUser!.id;
     final remoteUser = await SupabaseSync.pullProfile();
@@ -171,6 +210,9 @@ class DropStore extends ChangeNotifier {
       onDoseEventsChanged: () => unawaited(_pullDoseEventsIntoCache()),
       onProfileChanged: () => unawaited(_pullProfileIntoCache()),
     );
+
+    // FCM disabled — see main.dart.
+    // unawaited(FcmService.instance.registerDevice());
 
     unawaited(_outbox.flush());
   }
@@ -249,8 +291,20 @@ class DropStore extends ChangeNotifier {
       _eventsKey, jsonEncode(_events.map((e) => e.toJson()).toList()));
 
   Future<void> _syncReminders() async {
+    // Same input, same window as the local reschedule below — publishing
+    // it is what lets the server-side scheduler fire pushes at identical
+    // real-world moments without re-deriving taper/frequency logic of its
+    // own. Fire-and-forget: this is the cross-device/fallback layer, never
+    // a prerequisite for local reminders working (see FcmService's doc
+    // comment) — it must not be able to delay or block the line below.
+    // FCM disabled — see main.dart.
+    // unawaited(FcmService.instance.publishSchedule(_meds, _user));
     try {
       await NotificationService.instance.rescheduleAll(_meds, _user);
+      // Keeps the rolling window topped up even if the app isn't opened
+      // again for a while — see BackgroundScheduler's doc comment for what
+      // this can and can't guarantee per platform.
+      unawaited(BackgroundScheduler.schedulePeriodic());
     } catch (e) {
       debugPrint('reminder sync failed: $e');
     }
@@ -325,9 +379,14 @@ class DropStore extends ChangeNotifier {
     );
     await _persistUser();
     notifyListeners();
+    // Fired before (not after) _syncReminders — the server push, which is
+    // how onboarding completion and every other profile change actually
+    // reaches the account, must never be gated behind reminder scheduling
+    // succeeding or even finishing. rescheduleAll is internally timeout-
+    // bounded now, but there's no reason for this to wait on it at all.
+    unawaited(_pushProfileWithRetry());
     // Waking-hour changes recompute auto-spaced times → reschedule.
     await _syncReminders();
-    unawaited(_pushProfileWithRetry());
   }
 
   // ---- medications ----------------------------------------------------------
@@ -337,8 +396,8 @@ class DropStore extends ChangeNotifier {
     _meds.add(med);
     await _persistMeds();
     notifyListeners();
-    await _syncReminders();
     unawaited(_pushMedicationWithRetry(med));
+    await _syncReminders();
     return med;
   }
 
@@ -349,16 +408,16 @@ class DropStore extends ChangeNotifier {
     _meds[idx] = med;
     await _persistMeds();
     notifyListeners();
-    await _syncReminders();
     unawaited(_pushMedicationWithRetry(med));
+    await _syncReminders();
   }
 
   Future<void> deleteMedication(String id) async {
     _meds.removeWhere((m) => m.id == id);
     await _persistMeds();
     notifyListeners();
-    await _syncReminders();
     unawaited(_deleteMedicationWithRetry(id));
+    await _syncReminders();
   }
 
   Future<void> applyPreset(Preset preset) async {
@@ -387,6 +446,13 @@ class DropStore extends ChangeNotifier {
   Future<void> logResponse(Dose dose, DoseResponse response) async {
     if (response == DoseResponse.snoozed) {
       await NotificationService.instance.scheduleSnooze(dose, minutes: 10);
+      // Mirrors the same +10-minutes snooze to the server-side scheduler,
+      // so snoozing on this device is honoured on every signed-in device —
+      // see FcmService.publishSnooze's doc comment.
+      // FCM disabled — see main.dart.
+      // unawaited(FcmService.instance.publishSnooze(
+      //     dose.medicationId, dose.scheduledDate, dose.scheduledHhmm,
+      //     minutes: 10));
       return;
     }
     // Replace any prior terminal event for this exact dose slot.
@@ -438,6 +504,7 @@ class DropStore extends ChangeNotifier {
     await _prefs.remove(_eventsKey);
     await _prefs.remove(_userKey);
     await NotificationService.instance.cancelAll();
+    unawaited(BackgroundScheduler.cancel());
     notifyListeners();
   }
 

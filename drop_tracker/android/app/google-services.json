@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1094862476517",
+    "project_id": "drop-tracker-eds",
+    "storage_bucket": "drop-tracker-eds.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1094862476517:android:a03789c57c5d951e91700c",
+        "android_client_info": {
+          "package_name": "com.eyedropshop.drop_tracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAl_z0ha-GavhXnE5GjbyctoOI5CpKGjjo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

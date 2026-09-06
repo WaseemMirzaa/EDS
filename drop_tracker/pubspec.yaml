@@ -1,0 +1,110 @@
+name: drop_tracker
+description: "Drop Tracker by Eye Drop Shop — eye drop reminders & adherence tracking."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State management
+  provider: ^6.1.2
+
+  # Local persistence (guest mode / local database)
+  shared_preferences: ^2.3.2
+
+  # Real native reminders
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.9.4
+  flutter_timezone: ^3.0.1
+  # Native OS permission dialogs (notifications + Android battery)
+  permission_handler: ^11.3.1
+  # Manufacturer/brand detection, to target OEM-specific background-kill
+  # guidance (MIUI, ColorOS, FuntouchOS, EMUI, ...) only where it's needed.
+  device_info_plus: ^11.2.0
+  # Deep-links into OEM autostart/background-permission screens on Android —
+  # no cross-platform equivalent exists, so this is Android-only in practice.
+  android_intent_plus: ^5.2.0
+
+  # Branding / typography
+  google_fonts: ^6.2.1
+  flutter_svg: ^2.0.10+1
+
+  # Formatting & utilities
+  intl: ^0.19.0
+  uuid: ^4.5.1
+
+  # Doctor report: print / save as PDF
+  pdf: ^3.11.1
+  printing: ^5.13.4
+
+  # Calendar (.ics) export & sharing
+  share_plus: ^10.1.2
+  path_provider: ^2.1.5
+
+  # Privacy / terms / battery guidance / account deletion links
+  url_launcher: ^6.3.1
+
+  # Backend: auth, Postgres data sync, storage (Phase 2 scans)
+  supabase_flutter: ^2.8.0
+
+  # Native Google / Apple sign-in (falls back to the OAuth browser redirect
+  # when the platform-specific client id isn't configured — see
+  # data/remote/supabase_config.dart)
+  google_sign_in: ^6.2.2
+  sign_in_with_apple: ^6.1.4
+
+  # Best-effort background top-up of the reminder notification window when
+  # the app isn't opened for a while — see data/background_scheduler.dart
+  workmanager: ^0.9.2
+  firebase_core: ^4.14.0
+  firebase_messaging: ^16.6.0
+  package_info_plus: ^9.0.1
+
+  # In-app confirmation beep for the Confidence Check popup — deliberately
+  # not relying on Flutter's SystemSound.play, whose Android implementation
+  # only plays anything for SystemSoundType.click (not .alert), i.e. exactly
+  # the kind of silent-on-Android failure this was added to avoid.
+  audioplayers: ^6.1.0
+
+dependency_overrides:
+  # workmanager 0.9.2 resolves workmanager_platform_interface 0.9.4 by
+  # default, which added a `foregroundServiceConfig` parameter that neither
+  # platform implementation compatible with this project's Flutter SDK
+  # implements yet:
+  #   - workmanager_apple 0.9.4 predates it (0.9.5+ implements it, but also
+  #     starts using FlutterSceneLifeCycleDelegate, an engine API newer than
+  #     this project's Flutter SDK ships);
+  #   - workmanager_android likewise only gained it in 0.9.3.
+  # Pinning both the interface and the Android impl back to 0.9.2/0.9.3 (the
+  # last versions the 0.9.4 apple impl actually matches) resolves the
+  # mismatch. Revisit this pin when bumping the Flutter SDK constraint lets
+  # workmanager go to 0.10+ across the board.
+  workmanager_platform_interface: 0.9.3
+  workmanager_android: 0.9.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/sounds/
+
+# Generates native iOS + Android launcher icons from the brand mark.
+# Run: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  image_path: "assets/images/app_icon.png"
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/app_icon.png"
